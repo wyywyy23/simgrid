@@ -22,7 +22,7 @@ public:
   {
     XBT_INFO("Starting.");
     auto mailbox = simgrid::s4u::Mailbox::by_name("receiver");
-    int data     = *(int*)mailbox->get();
+    int data     = *mailbox->get<int>();
     XBT_INFO("Got %d at the end", data);
   }
 };
@@ -41,7 +41,7 @@ public:
 
     XBT_INFO("Sending a message to the receiver...");
     auto mailbox = simgrid::s4u::Mailbox::by_name("receiver");
-    int data     = 42;
+    static int data = 42;
     mailbox->put(&data, 4);
 
     XBT_INFO("Done!");

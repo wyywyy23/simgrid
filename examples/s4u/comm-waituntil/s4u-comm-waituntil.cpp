@@ -71,11 +71,10 @@ static void receiver(int argc, char** argv)
 
   XBT_INFO("Wait for my first message");
   for (bool cont = true; cont;) {
-    const auto* received = static_cast<std::string*>(mbox->get());
+    auto received = mbox->get_unique<std::string>();
     XBT_INFO("I got a '%s'.", received->c_str());
     if (*received == "finalize")
       cont = false; // If it's a finalize message, we're done.
-    delete received;
   }
 }
 

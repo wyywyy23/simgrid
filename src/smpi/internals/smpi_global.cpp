@@ -20,8 +20,10 @@
 #include <array>
 #include <boost/algorithm/string.hpp> /* split */
 #include <boost/tokenizer.hpp>
+#include <cerrno>
 #include <cinttypes>
 #include <cstdint> /* intmax_t */
+#include <cstring> /* strerror */
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <fstream>
@@ -63,7 +65,7 @@ XBT_LOG_NEW_DEFAULT_SUBCATEGORY(smpi_kernel, smpi, "Logging specific to SMPI (ke
 
 #if HAVE_PAPI
 std::string papi_default_config_name = "default";
-std::map</* computation unit name */ std::string, papi_process_data> units2papi_setup;
+std::map</* computation unit name */ std::string, papi_process_data, std::less<>> units2papi_setup;
 #endif
 
 std::unordered_map<std::string, double> location2speedup;
@@ -275,9 +277,7 @@ static void smpi_init_papi()
         }
         XBT_DEBUG("Successfully added PAPI event '%s' to the event set.", event_name);
 
-        counters2values.push_back(
-            // We cannot just pass *events_it, as this is of type const basic_string
-            std::make_pair(std::string(*events_it), 0LL));
+        counters2values.emplace_back(*events_it, 0LL);
       }
 
       std::string unit_name    = *(event_tokens.begin());
@@ -362,8 +362,10 @@ static void smpi_copy_file(const std::string& src, const std::string& target, of
 {
   int fdin = open(src.c_str(), O_RDONLY);
   xbt_assert(fdin >= 0, "Cannot read from %s. Please make sure that the file exists and is executable.", src.c_str());
-  int fdout = open(target.c_str(), O_CREAT | O_RDWR, S_IRWXU);
-  xbt_assert(fdout >= 0, "Cannot write into %s", target.c_str());
+  XBT_ATTRIB_UNUSED int unlink_status = unlink(target.c_str());
+  xbt_assert(unlink_status == 0 || errno == ENOENT, "Failed to unlink file %s: %s", target.c_str(), strerror(errno));
+  int fdout = open(target.c_str(), O_CREAT | O_RDWR | O_EXCL, S_IRWXU);
+  xbt_assert(fdout >= 0, "Cannot write into %s: %s", target.c_str(), strerror(errno));
 
   XBT_DEBUG("Copy %" PRIdMAX " bytes into %s", static_cast<intmax_t>(fdin_size), target.c_str());
 #if SG_HAVE_SENDFILE

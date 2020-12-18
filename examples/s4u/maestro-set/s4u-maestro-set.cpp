@@ -41,16 +41,15 @@ static void sender()
 {
   ensure_root_tid();
   auto* payload = new std::string("some message");
-  simgrid::s4u::Mailbox::by_name("some mailbox")->put((void*)payload, 10e8);
+  simgrid::s4u::Mailbox::by_name("some mailbox")->put(payload, 10e8);
 }
 
 static void receiver()
 {
   ensure_other_tid();
 
-  const auto* payload = static_cast<std::string*>(simgrid::s4u::Mailbox::by_name("some mailbox")->get());
+  simgrid::s4u::Mailbox::by_name("some mailbox")->get_unique<std::string>();
   XBT_INFO("Task received");
-  delete payload;
 }
 
 static void maestro(void* /* data */)

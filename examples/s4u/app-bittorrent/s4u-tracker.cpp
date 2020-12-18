@@ -29,22 +29,21 @@ Tracker::Tracker(std::vector<std::string> args)
 void Tracker::operator()()
 {
   simgrid::s4u::CommPtr comm = nullptr;
-  void* received             = nullptr;
+  TrackerQuery* query        = nullptr;
   while (simgrid::s4u::Engine::get_clock() < deadline) {
     if (comm == nullptr)
-      comm = mailbox->get_async(&received);
+      comm = mailbox->get_async<TrackerQuery>(&query);
     if (comm->test()) {
       // Retrieve the data sent by the peer.
-      xbt_assert(received != nullptr);
-      auto* tq = static_cast<TrackerQuery*>(received);
+      xbt_assert(query != nullptr);
 
       // Add the peer to our peer list, if not already known.
-      if (known_peers.find(tq->getPeerId()) == known_peers.end()) {
-        known_peers.insert(tq->getPeerId());
+      if (known_peers.find(query->getPeerId()) == known_peers.end()) {
+        known_peers.insert(query->getPeerId());
       }
 
       // Sending back peers to the requesting peer
-      auto* ta = new TrackerAnswer(TRACKER_QUERY_INTERVAL);
+      auto* answer = new TrackerAnswer(TRACKER_QUERY_INTERVAL);
       std::set<int>::iterator next_peer;
       int nb_known_peers = static_cast<int>(known_peers.size());
       int max_tries      = std::min(MAXIMUM_PEERS, nb_known_peers);
@@ -53,13 +52,13 @@ void Tracker::operator()()
         do {
           next_peer = known_peers.begin();
           std::advance(next_peer, random.uniform_int(0, nb_known_peers - 1));
-        } while (ta->getPeers().find(*next_peer) != ta->getPeers().end());
-        ta->addPeer(*next_peer);
+        } while (answer->getPeers().find(*next_peer) != answer->getPeers().end());
+        answer->addPeer(*next_peer);
         tried++;
       }
-      tq->getReturnMailbox()->put_init(ta, TRACKER_COMM_SIZE)->detach();
+      query->getReturnMailbox()->put_init(answer, TRACKER_COMM_SIZE)->detach();
 
-      delete tq;
+      delete query;
       comm = nullptr;
     } else {
       simgrid::s4u::this_actor::sleep_for(1);

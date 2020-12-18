@@ -49,15 +49,15 @@ static void receiver(std::vector<std::string> args)
   simgrid::s4u::Mailbox* mailbox = simgrid::s4u::Mailbox::by_name(std::string("message"));
 
   if (flow_amount == 1) {
-    void* res = mailbox->get();
+    char* res = mailbox->get<char>();
     xbt_free(res);
   } else {
-    std::vector<void*> data(flow_amount);
+    std::vector<char*> data(flow_amount);
 
     // Start all comms in parallel, and wait for their completion in one shot
     std::vector<simgrid::s4u::CommPtr> comms;
     for (int i = 0; i < flow_amount; i++)
-      comms.push_back(mailbox->get_async(&data[i]));
+      comms.push_back(mailbox->get_async<char>(&data[i]));
 
     simgrid::s4u::Comm::wait_all(&comms);
     for (int i = 0; i < flow_amount; i++)
