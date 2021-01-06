@@ -207,6 +207,18 @@ void sg_platf_new_cluster(simgrid::kernel::routing::ClusterCreationArgs* cluster
     host.pstate = 0;
     host.core_amount = cluster->core_amount;
     host.coord = "";
+    
+    /* wyy: add a local disk to each host in the cluster */
+    std::vector<simgrid::kernel::resource::DiskImpl*> disks;
+    simgrid::kernel::routing::DiskCreationArgs disk;
+    disk.id = "local_disk";
+    disk.read_bw = 16000000000;
+    disk.write_bw = 16000000000;
+    disk.properties = new std::unordered_map<std::string, std::string>();
+    disk.properties->insert(std::make_pair<std::string, std::string>("size", "14304GiB"));
+    disk.properties->insert(std::make_pair<std::string, std::string>("mount", "/"));
+    disks.push_back(sg_platf_new_disk(&disk));
+    host.disks = disks;
     sg_platf_new_host(&host);
     XBT_DEBUG("</host>");
 
