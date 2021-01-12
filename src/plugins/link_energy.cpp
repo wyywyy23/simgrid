@@ -11,6 +11,7 @@
 #include "src/surf/network_interface.hpp"
 #include "src/surf/surf_interface.hpp"
 #include "surf/surf.hpp"
+#include <simgrid/s4u.hpp>
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
@@ -196,7 +197,16 @@ void sg_link_energy_plugin_init()
     return;
   LinkEnergy::EXTENSION_ID = simgrid::s4u::Link::extension_create<LinkEnergy>();
 
-  xbt_assert(sg_host_count() == 0, "Please call sg_link_energy_plugin_init() before initializing the platform.");
+  // xbt_assert(sg_host_count() == 0, "Please call sg_link_energy_plugin_init() before initializing the platform.");
+
+  if (simgrid::s4u::Engine::is_initialized()) {
+    const simgrid::s4u::Engine* e = simgrid::s4u::Engine::get_instance();
+    for (auto& link : e->get_all_links()) {
+      if (link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
+        link->extension_set(new LinkEnergy(link));
+      }
+    }
+  }
 
   simgrid::s4u::Link::on_creation.connect([](simgrid::s4u::Link& link) {
     if (link.get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {

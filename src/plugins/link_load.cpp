@@ -9,6 +9,7 @@
 #include "src/surf/network_interface.hpp"
 #include "src/surf/surf_interface.hpp"
 #include "surf/surf.hpp"
+#include <simgrid/s4u.hpp>
 
 #include <limits>
 
@@ -171,7 +172,7 @@ using simgrid::plugin::LinkLoad;
 /* **************************** events  callback *************************** */
 static void on_communicate(const simgrid::kernel::resource::NetworkAction& action)
 {
-  XBT_DEBUG("on_communicate is called");
+  // XBT_DEBUG("on_communicate is called");
   for (auto* link : action.get_links()) {
     if (link == nullptr || link->get_sharing_policy() == simgrid::s4u::Link::SharingPolicy::WIFI)
       continue;
@@ -192,9 +193,23 @@ static void on_communicate(const simgrid::kernel::resource::NetworkAction& actio
  */
 void sg_link_load_plugin_init()
 {
-  xbt_assert(sg_host_count() == 0, "Please call sg_link_load_plugin_init() BEFORE initializing the platform.");
-  xbt_assert(!LinkLoad::EXTENSION_ID.valid(), "Double call to sg_link_load_plugin_init. Aborting.");
+  // xbt_assert(sg_host_count() == 0, "Please call sg_link_load_plugin_init() BEFORE initializing the platform.");
+  // xbt_assert(!LinkLoad::EXTENSION_ID.valid(), "Double call to sg_link_load_plugin_init. Aborting.");
+
+  if (LinkLoad::EXTENSION_ID.valid()) {
+    return;
+  }
+
   LinkLoad::EXTENSION_ID = simgrid::s4u::Link::extension_create<LinkLoad>();
+
+  if (simgrid::s4u::Engine::is_initialized()) {
+    const simgrid::s4u::Engine* e = simgrid::s4u::Engine::get_instance();
+    for (auto& link : e->get_all_links()) {
+      if (link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
+        link->extension_set(new LinkLoad(link));
+      }
+    }
+  }
 
   // Attach new LinkLoad links created in the future.
   simgrid::s4u::Link::on_creation.connect([](simgrid::s4u::Link& link) {
