@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2020. The SimGrid Team. LEVEL_ALL rights reserved.          */
+/* Copyright (c) 2007-2021. The SimGrid Team. LEVEL_ALL rights reserved.          */
 
 /* This program is free software; you can redistribute it and/or modify it
  * under the terms of the license (GNU LGPL) which comes with this package. */
@@ -15,7 +15,7 @@ public:
   std::string sender;
   int size;
 
-  Message(std::string sender_, int size_) : sender(sender_), size(size_) {}
+  Message(const std::string& sender_, int size_) : sender(sender_), size(size_) {}
 };
 
 static void sender(std::string mailbox, double msg_size, unsigned sleep_time)

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2020. The SimGrid Team.
+/* Copyright (c) 2012-2021. The SimGrid Team.
  * All rights reserved.                                                     */
 
 /* This program is free software; you can redistribute it and/or modify it
@@ -38,9 +38,7 @@ void Tracker::operator()()
       xbt_assert(query != nullptr);
 
       // Add the peer to our peer list, if not already known.
-      if (known_peers.find(query->getPeerId()) == known_peers.end()) {
-        known_peers.insert(query->getPeerId());
-      }
+      known_peers.emplace(query->getPeerId());
 
       // Sending back peers to the requesting peer
       auto* answer = new TrackerAnswer(TRACKER_QUERY_INTERVAL);
