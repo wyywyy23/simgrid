@@ -2025,6 +2025,7 @@ include include/simgrid/mailbox.h
 include include/simgrid/modelchecker.h
 include include/simgrid/msg.h
 include include/simgrid/mutex.h
+include include/simgrid/plugins/dlps.h
 include include/simgrid/plugins/dvfs.h
 include include/simgrid/plugins/energy.h
 include include/simgrid/plugins/file_system.h
@@ -2356,6 +2357,7 @@ include src/msg/msg_private.hpp
 include src/msg/msg_process.cpp
 include src/msg/msg_task.cpp
 include src/plugins/dirty_page_tracking.cpp
+include src/plugins/dlps.cpp
 include src/plugins/file_system/s4u_FileSystem.cpp
 include src/plugins/host_dvfs.cpp
 include src/plugins/host_energy.cpp

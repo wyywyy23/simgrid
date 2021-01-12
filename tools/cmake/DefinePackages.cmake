@@ -376,6 +376,7 @@ set(PLUGINS_SRC
   src/plugins/link_energy_wifi.cpp
   src/plugins/host_load.cpp
   src/plugins/link_load.cpp
+  src/plugins/dlps.cpp
   src/plugins/file_system/s4u_FileSystem.cpp
   src/plugins/vm/VirtualMachineImpl.hpp
   src/plugins/vm/s4u_VirtualMachine.cpp
@@ -696,6 +697,7 @@ set(headers_to_install
   include/simgrid/plugins/file_system.h
   include/simgrid/plugins/live_migration.h
   include/simgrid/plugins/load.h
+  include/simgrid/plugins/dlps.h
   include/simgrid/smpi/replay.hpp
   include/simgrid/instr.h
   include/simgrid/mailbox.h
