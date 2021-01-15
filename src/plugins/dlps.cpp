@@ -96,8 +96,13 @@ void DLPS::update()
              " Please enable your link with sg_dlps_enable before trying to access any of its load metrics.",
              link_->get_cname());
 
+  std::string link_name = link_->get_cname();
   double current_instantaneous_bytes_per_second = link_->get_usage();
   double now                                    = surf_get_clock();
+  
+  if (link_name[1] != 'a' and link_name[1] != 'o') {
+    XBT_INFO("%s,usage,%.17f,%f\n", link_->get_cname(), now, current_instantaneous_bytes_per_second);
+  }
 
   // Update minimum/maximum observed values if needed
   min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
@@ -210,7 +215,7 @@ void sg_dlps_plugin_init()
   });
   simgrid::s4u::Link::on_communication_state_change.connect(
       [](simgrid::kernel::resource::NetworkAction const& action,
-         simgrid::kernel::resource::Action::State /* previous */) {
+         simgrid::kernel::resource::Action::State) {
         for (auto const* link : action.get_links()) {
           if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
             auto dlps = link->get_iface()->extension<DLPS>();
