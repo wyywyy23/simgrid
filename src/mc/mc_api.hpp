@@ -75,7 +75,6 @@ public:
   std::size_t get_remote_heap_bytes() const;
 
   // MODEL CHECKER APIs
-  ModelChecker* get_model_checker() const;
   void mc_inc_visited_states() const;
   void mc_inc_executed_trans() const;
   unsigned long mc_get_visited_states() const;
@@ -99,6 +98,8 @@ public:
   std::string request_get_dot_output(smx_simcall_t req, int value) const;
   const char *simcall_get_name(simgrid::simix::Simcall kind) const;
   smx_actor_t simcall_get_issuer(s_smx_simcall const* req) const;
+  long simcall_get_actor_id(s_smx_simcall const* req) const;
+
 #if HAVE_SMPI
   int get_smpi_request_tag(smx_simcall_t const& simcall, simgrid::simix::Simcall type) const;
 #endif
