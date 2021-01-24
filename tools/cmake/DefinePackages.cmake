@@ -78,7 +78,6 @@ set(EXTRA_DIST
   src/xbt/mmalloc/mrealloc.c
   src/xbt/mmalloc/swag.c
   src/xbt/mmalloc/swag.h
-  tools/tesh/generate_tesh
   tools/lualib.patch
   teshsuite/lua/lua_platforms.tesh
   examples/smpi/mc/only_send_deterministic.tesh
@@ -878,7 +877,6 @@ set(DOC_SOURCES
   doc/doxygen/module-trace.doc
   doc/doxygen/module-xbt.doc
   doc/doxygen/module-index.doc
-  doc/doxygen/outcomes_logs.doc
   doc/doxygen/outcomes_vizu.doc
   doc/doxygen/platform.doc
   doc/doxygen/platform_lua.doc
@@ -896,6 +894,7 @@ set(DOC_SOURCES
   docs/manpages/tesh.pod
 
   docs/Build.sh
+  docs/bin/extract_logs_hierarchy.pl
   docs/requirements.txt
   docs/source/conf.py
   docs/source/Doxyfile
@@ -935,6 +934,7 @@ set(DOC_SOURCES
   docs/source/app_msg.rst
   docs/source/app_s4u.rst
   docs/source/app_smpi.rst
+  docs/source/The_XBT_toolbox.rst
   docs/source/community.rst
   docs/source/Configuring_SimGrid.rst
   docs/source/Deploying_your_Application.rst
@@ -980,14 +980,7 @@ set(DOC_SOURCES
   CITATION.bib
   )
 
-set(DOC_FIGS
-  ${CMAKE_HOME_DIRECTORY}/doc/shared/fig/simgrid_modules.fig
-  ${CMAKE_HOME_DIRECTORY}/doc/shared/fig/simgrid_modules2.fig
-  )
-
 set(DOC_TOOLS
-  tools/doxygen/fig2dev_postprocessor.pl
-  tools/doxygen/xbt_log_extract_hierarchy.pl
   tools/doxygen/list_routing_models_examples.sh
   )
 

@@ -18,6 +18,10 @@ S4U:
  - New functions: Comm::sendto_{init,async} to initiate a communication
    on between two (possibly remote) hosts.
 
+Documentation:
+ - New section: Configuring the logs from the command line.
+ - New section: Programming API of logs.
+
 ----------------------------------------------------------------------------
 
 SimGrid (3.26) December 15. 2020
