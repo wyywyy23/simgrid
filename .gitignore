@@ -244,6 +244,7 @@ examples/smpi/smpi_s4u_masterworker/masterworker_mailbox_smpi
 examples/smpi/trace_call_location/smpi_trace_call_location
 examples/smpi/trace_simple/smpi_trace_simple
 examples/smpi/trace/smpi_trace
+examples/s4u/comm-host2host/s4u-comm-host2host
 teshsuite/kernel/context-defaults/context-defaults
 teshsuite/java/semaphoregc/java-semaphoregc_compiled
 teshsuite/java/sleephostoff/java-sleephostoff_compiled
