@@ -35,6 +35,7 @@ public:
 
   /// Getter methods.
   bool is_enabled() const;
+  s4u::Link* get_s4u_link();
   double get_cumulated_bytes();
   double get_min_bytes_per_second();
   double get_max_bytes_per_second();
@@ -100,9 +101,9 @@ void DLPS::update()
   double current_instantaneous_bytes_per_second = link_->get_usage();
   double now                                    = surf_get_clock();
   
-  if (link_name[1] != 'a' and link_name[1] != 'o') {
-    XBT_INFO("%s,usage,%.17f,%f\n", link_->get_cname(), now, current_instantaneous_bytes_per_second);
-  }
+//  if (link_name[1] != 'a' and link_name[1] != 'o') {
+//    XBT_INFO("%s,usage,%.17f,%f\n", link_->get_cname(), now, current_instantaneous_bytes_per_second);
+//  }
 
   // Update minimum/maximum observed values if needed
   min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
@@ -117,6 +118,10 @@ void DLPS::update()
 
   cumulated_bytes_ += bytes_since_last_update;
   last_updated_ = now;
+}
+
+s4u::Link* DLPS::get_s4u_link() {
+  return link_;
 }
 
 bool DLPS::is_enabled() const
@@ -166,6 +171,15 @@ static void on_communicate(const simgrid::kernel::resource::NetworkAction& actio
     auto dlps = link->get_iface()->extension<DLPS>();
     if (dlps->is_enabled()) {
       dlps->update();
+
+      std::string link_name = dlps->get_s4u_link()->get_cname();
+      double current_instantaneous_bytes_per_second = dlps->get_s4u_link()->get_usage();
+      double now                                    = surf_get_clock();
+
+      if (link_name[1] != 'a' and link_name[1] != 'o') {
+        XBT_INFO("%s,on_communicate,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+      }
+
     }
   }
 }
@@ -219,8 +233,32 @@ void sg_dlps_plugin_init()
         for (auto const* link : action.get_links()) {
           if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
             auto dlps = link->get_iface()->extension<DLPS>();
-            if (dlps->is_enabled())
+            if (dlps->is_enabled()) {
               dlps->update();
+
+              std::string link_name = dlps->get_s4u_link()->get_cname();
+              double current_instantaneous_bytes_per_second = dlps->get_s4u_link()->get_usage();
+              double now                                    = surf_get_clock();
+	      std::string current_state                     = "";
+
+	      switch (action.get_state()) {
+		case simgrid::kernel::resource::Action::State::INITED : 
+			current_state = "initialized"; break;
+		case simgrid::kernel::resource::Action::State::STARTED : 
+			current_state = "started"; break;
+		case simgrid::kernel::resource::Action::State::FAILED : 
+			current_state = "failed"; break;
+		case simgrid::kernel::resource::Action::State::FINISHED : 
+			current_state = "finished"; break;
+		case simgrid::kernel::resource::Action::State::IGNORED : 
+			current_state = "ignored"; break;
+	      }
+
+              if (link_name[1] != 'a' and link_name[1] != 'o') {
+                XBT_INFO("%s,%s,%.17f,%f\n", link_name.c_str(), current_state.c_str(), now, current_instantaneous_bytes_per_second);
+              }
+	    }
+	      
           }
         }
       });
