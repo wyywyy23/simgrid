@@ -177,7 +177,8 @@ static void on_communicate(const simgrid::kernel::resource::NetworkAction& actio
       double now                                    = surf_get_clock();
 
       if (link_name[1] != 'a' and link_name[1] != 'o') {
-        XBT_INFO("%s,on_communicate,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+//        XBT_INFO("%s,on_communicate,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+        XBT_INFO("%s,status,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
       }
 
     }
@@ -255,7 +256,8 @@ void sg_dlps_plugin_init()
 	      }
 
               if (link_name[1] != 'a' and link_name[1] != 'o') {
-                XBT_INFO("%s,%s,%.17f,%f\n", link_name.c_str(), current_state.c_str(), now, current_instantaneous_bytes_per_second);
+//                XBT_INFO("%s,%s,%.17f,%f\n", link_name.c_str(), current_state.c_str(), now, current_instantaneous_bytes_per_second);
+                XBT_INFO("%s,status,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
               }
 	    }
 	      
