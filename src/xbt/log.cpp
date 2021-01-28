@@ -38,7 +38,7 @@ struct xbt_log_setting_t {
 };
 
 // This function is here to avoid static initialization order fiasco
-static std::vector<xbt_log_setting_t>& xbt_log_settings()
+static auto& xbt_log_settings()
 {
   static std::vector<xbt_log_setting_t> value;
   return value;
@@ -572,7 +572,7 @@ static void xbt_log_help()
       "         -> %%p: Priority name (LOG4J compatible)\n"
       "\n"
       "         -> %%h: Hostname (SimGrid extension)\n"
-      "         -> %%P: Process name (SimGrid extension)\n"
+      "         -> %%a: Actor name (SimGrid extension)\n"
       "         -> %%t: Thread \"name\" (LOG4J compatible -- actually the address of the thread in memory)\n"
       "         -> %%i: Process PID (SimGrid extension -- this is a 'i' as in 'i'dea)\n"
       "\n"
