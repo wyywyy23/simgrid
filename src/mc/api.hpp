@@ -34,6 +34,9 @@ private:
     }
   };
 
+smx_mailbox_t get_mbox(smx_simcall_t const r) const;
+simgrid::kernel::activity::CommImpl* get_comm(smx_simcall_t const r) const;
+bool request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const;
 
 public:
   // No copy:
@@ -56,6 +59,7 @@ public:
 
   // COMMUNICATION APIs
   RemotePtr<kernel::activity::CommImpl> get_comm_isend_raw_addr(smx_simcall_t request) const;
+  RemotePtr<kernel::activity::CommImpl> get_comm_irecv_raw_addr(smx_simcall_t request) const;
   RemotePtr<kernel::activity::CommImpl> get_comm_wait_raw_addr(smx_simcall_t request) const;
   RemotePtr<kernel::activity::CommImpl> get_comm_waitany_raw_addr(smx_simcall_t request, int value) const;
   std::string get_pattern_comm_rdv(RemotePtr<kernel::activity::CommImpl> const& addr) const;

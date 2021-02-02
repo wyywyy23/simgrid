@@ -48,93 +48,6 @@ static char* buff_size_to_string(size_t buff_size)
   return xbt_strdup("(verbose only)");
 }
 
-inline
-smx_mailbox_t get_mbox(smx_simcall_t const r)
-{
-  switch (r->call_) {
-    case Simcall::COMM_ISEND:
-      return simcall_comm_isend__get__mbox(r);
-    case Simcall::COMM_IRECV:
-      return simcall_comm_irecv__get__mbox(r);
-    default:
-      return nullptr;
-  }
-}
-
-inline simgrid::kernel::activity::CommImpl* get_comm(smx_simcall_t const r)
-{
-  switch (r->call_) {
-    case Simcall::COMM_WAIT:
-      return simcall_comm_wait__getraw__comm(r);
-    case Simcall::COMM_TEST:
-      return simcall_comm_test__getraw__comm(r);
-    default:
-      return nullptr;
-  }
-}
-
-// Does half the job
-inline bool request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2)
-{
-  if (r1->call_ == Simcall::COMM_ISEND && r2->call_ == Simcall::COMM_IRECV)
-    return false;
-
-  if (r1->call_ == Simcall::COMM_IRECV && r2->call_ == Simcall::COMM_ISEND)
-    return false;
-
-  // Those are internal requests, we do not need indirection because those objects are copies:
-  const kernel::activity::CommImpl* synchro1 = get_comm(r1);
-  const kernel::activity::CommImpl* synchro2 = get_comm(r2);
-
-  if ((r1->call_ == Simcall::COMM_ISEND || r1->call_ == Simcall::COMM_IRECV) && r2->call_ == Simcall::COMM_WAIT) {
-    const kernel::activity::MailboxImpl* mbox = get_mbox(r1); // r1->get_mboxx')
-
-    if (mbox != synchro2->mbox_cpy
-        && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->issuer_ != synchro2->src_actor_.get()) && (r1->issuer_ != synchro2->dst_actor_.get()) &&
-        simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->call_ == Simcall::COMM_ISEND) && (synchro2->type_ == kernel::activity::CommImpl::Type::SEND) &&
-        (synchro2->src_buff_ != simcall_comm_isend__get__src_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->call_ == Simcall::COMM_IRECV) && (synchro2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
-        (synchro2->dst_buff_ != simcall_comm_irecv__get__dst_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-  }
-
-  /* FIXME: the following rule assumes that the result of the isend/irecv call is not stored in a buffer used in the
-   * test call. */
-#if 0
-  if((r1->call == Simcall::COMM_ISEND || r1->call == Simcall::COMM_IRECV)
-      &&  r2->call == Simcall::COMM_TEST)
-    return false;
-#endif
-
-  if (r1->call_ == Simcall::COMM_WAIT && (r2->call_ == Simcall::COMM_WAIT || r2->call_ == Simcall::COMM_TEST) &&
-      (synchro1->src_actor_.get() == nullptr || synchro1->dst_actor_.get() == nullptr))
-    return false;
-
-  if (r1->call_ == Simcall::COMM_TEST &&
-      (simcall_comm_test__get__comm(r1) == nullptr || synchro1->src_buff_ == nullptr || synchro1->dst_buff_ == nullptr))
-    return false;
-
-  if (r1->call_ == Simcall::COMM_TEST && r2->call_ == Simcall::COMM_WAIT &&
-      synchro1->src_buff_ == synchro2->src_buff_ && synchro1->dst_buff_ == synchro2->dst_buff_)
-    return false;
-
-  if (r1->call_ == Simcall::COMM_WAIT && r2->call_ == Simcall::COMM_TEST && synchro1->src_buff_ != nullptr &&
-      synchro1->dst_buff_ != nullptr && synchro2->src_buff_ != nullptr && synchro2->dst_buff_ != nullptr &&
-      synchro1->dst_buff_ != synchro2->src_buff_ && synchro1->dst_buff_ != synchro2->dst_buff_ &&
-      synchro2->dst_buff_ != synchro1->src_buff_)
-    return false;
-
-  return true;
-}
-
 /* Search an enabled transition for the given process.
  *
  * This can be seen as an iterator returning the next transition of the process.
@@ -289,6 +202,92 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
   return req;
 }
 
+smx_mailbox_t Api::get_mbox(smx_simcall_t const r) const
+{
+  switch (r->call_) {
+    case Simcall::COMM_ISEND:
+      return simcall_comm_isend__get__mbox(r);
+    case Simcall::COMM_IRECV:
+      return simcall_comm_irecv__get__mbox(r);
+    default:
+      return nullptr;
+  }
+}
+
+simgrid::kernel::activity::CommImpl* Api::get_comm(smx_simcall_t const r) const
+{
+  switch (r->call_) {
+    case Simcall::COMM_WAIT:
+      return simcall_comm_wait__getraw__comm(r);
+    case Simcall::COMM_TEST:
+      return simcall_comm_test__getraw__comm(r);
+    default:
+      return nullptr;
+  }
+}
+
+// Does half the job
+bool Api::request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const 
+{
+  if (r1->call_ == Simcall::COMM_ISEND && r2->call_ == Simcall::COMM_IRECV)
+    return false;
+
+  if (r1->call_ == Simcall::COMM_IRECV && r2->call_ == Simcall::COMM_ISEND)
+    return false;
+
+  // Those are internal requests, we do not need indirection because those objects are copies:
+  const kernel::activity::CommImpl* synchro1 = get_comm(r1);
+  const kernel::activity::CommImpl* synchro2 = get_comm(r2);
+
+  if ((r1->call_ == Simcall::COMM_ISEND || r1->call_ == Simcall::COMM_IRECV) && r2->call_ == Simcall::COMM_WAIT) {
+    const kernel::activity::MailboxImpl* mbox = get_mbox(r1); // r1->get_mboxx')
+
+    if (mbox != synchro2->mbox_cpy
+        && simcall_comm_wait__get__timeout(r2) <= 0)
+      return false;
+
+    if ((r1->issuer_ != synchro2->src_actor_.get()) && (r1->issuer_ != synchro2->dst_actor_.get()) &&
+        simcall_comm_wait__get__timeout(r2) <= 0)
+      return false;
+
+    if ((r1->call_ == Simcall::COMM_ISEND) && (synchro2->type_ == kernel::activity::CommImpl::Type::SEND) &&
+        (synchro2->src_buff_ != simcall_comm_isend__get__src_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
+      return false;
+
+    if ((r1->call_ == Simcall::COMM_IRECV) && (synchro2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
+        (synchro2->dst_buff_ != simcall_comm_irecv__get__dst_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
+      return false;
+  }
+
+  /* FIXME: the following rule assumes that the result of the isend/irecv call is not stored in a buffer used in the
+   * test call. */
+#if 0
+  if((r1->call == Simcall::COMM_ISEND || r1->call == Simcall::COMM_IRECV)
+      &&  r2->call == Simcall::COMM_TEST)
+    return false;
+#endif
+
+  if (r1->call_ == Simcall::COMM_WAIT && (r2->call_ == Simcall::COMM_WAIT || r2->call_ == Simcall::COMM_TEST) &&
+      (synchro1->src_actor_.get() == nullptr || synchro1->dst_actor_.get() == nullptr))
+    return false;
+
+  if (r1->call_ == Simcall::COMM_TEST &&
+      (simcall_comm_test__get__comm(r1) == nullptr || synchro1->src_buff_ == nullptr || synchro1->dst_buff_ == nullptr))
+    return false;
+
+  if (r1->call_ == Simcall::COMM_TEST && r2->call_ == Simcall::COMM_WAIT &&
+      synchro1->src_buff_ == synchro2->src_buff_ && synchro1->dst_buff_ == synchro2->dst_buff_)
+    return false;
+
+  if (r1->call_ == Simcall::COMM_WAIT && r2->call_ == Simcall::COMM_TEST && synchro1->src_buff_ != nullptr &&
+      synchro1->dst_buff_ != nullptr && synchro2->src_buff_ != nullptr && synchro2->dst_buff_ != nullptr &&
+      synchro1->dst_buff_ != synchro2->src_buff_ && synchro1->dst_buff_ != synchro2->dst_buff_ &&
+      synchro2->dst_buff_ != synchro1->src_buff_)
+    return false;
+
+  return true;
+}
+
 void Api::initialize(char** argv) const
 {
   simgrid::mc::session = new simgrid::mc::Session([argv] {
@@ -323,6 +322,12 @@ int Api::get_actors_size() const
 }
 
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_isend_raw_addr(smx_simcall_t request) const
+{
+  auto comm_addr = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::ActivityImpl*>(request->result_);
+  return RemotePtr<kernel::activity::CommImpl>(static_cast<kernel::activity::CommImpl*>(comm_addr));
+}
+
+RemotePtr<kernel::activity::CommImpl> Api::get_comm_irecv_raw_addr(smx_simcall_t request) const
 {
   auto comm_addr = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::ActivityImpl*>(request->result_);
   return RemotePtr<kernel::activity::CommImpl>(static_cast<kernel::activity::CommImpl*>(comm_addr));
@@ -465,14 +470,36 @@ void Api::mc_show_deadlock() const
   MC_show_deadlock();
 }
 
+/** Get the issuer of a simcall (`req->issuer`)
+ *
+ *  In split-process mode, it does the black magic necessary to get an address
+ *  of a (shallow) copy of the data structure the issuer SIMIX actor in the local
+ *  address space.
+ *
+ *  @param process the MCed process
+ *  @param req     the simcall (copied in the local process)
+ */
 smx_actor_t Api::simcall_get_issuer(s_smx_simcall const* req) const
 {
-  return MC_smx_simcall_get_issuer(req);
+  xbt_assert(mc_model_checker != nullptr);
+
+  // This is the address of the smx_actor in the MCed process:
+  auto address = simgrid::mc::remote(req->issuer_);
+
+  // Lookup by address:
+  for (auto& actor : mc_model_checker->get_remote_simulation().actors())
+    if (actor.address == address)
+      return actor.copy.get_buffer();
+  for (auto& actor : mc_model_checker->get_remote_simulation().dead_actors())
+    if (actor.address == address)
+      return actor.copy.get_buffer();
+
+  xbt_die("Issuer not found");
 }
 
 long Api::simcall_get_actor_id(s_smx_simcall const* req) const
 {
-  return MC_smx_simcall_get_issuer(req)->get_pid();
+  return simcall_get_issuer(req)->get_pid();
 }
 
 smx_mailbox_t Api::simcall_get_mbox(smx_simcall_t const req) const
@@ -595,7 +622,7 @@ std::string Api::request_to_string(smx_simcall_t req, int value, RequestType req
   const char* type = nullptr;
   char* args       = nullptr;
 
-  smx_actor_t issuer = MC_smx_simcall_get_issuer(req);
+  smx_actor_t issuer = simcall_get_issuer(req);
 
   switch (req->call_) {
     case Simcall::COMM_ISEND: {
@@ -765,7 +792,7 @@ std::string Api::request_to_string(smx_simcall_t req, int value, RequestType req
 
 std::string Api::request_get_dot_output(smx_simcall_t req, int value) const
 {
-  const smx_actor_t issuer = MC_smx_simcall_get_issuer(req);
+  const smx_actor_t issuer = simcall_get_issuer(req);
   const char* color        = get_color(issuer->get_pid() - 1);
 
   if (req->inspector_ != nullptr)
