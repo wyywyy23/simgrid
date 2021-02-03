@@ -23,9 +23,13 @@ Comm::~Comm()
 {
   if (state_ == State::STARTED && not detached_ &&
       (pimpl_ == nullptr || pimpl_->state_ == kernel::activity::State::RUNNING)) {
-    XBT_INFO("Comm %p freed before its completion. Detached: %d, State: %d", this, detached_, (int)state_);
+    if (not detached_)
+      XBT_INFO("Comm %p freed before its completion. Did you forget to detach it? (state: %s)", this, get_state_str());
+    else
+      XBT_INFO("Detached comm %p freed before its completion, please report that bug along with a MWE (state: %s).",
+               this, get_state_str());
     if (pimpl_ != nullptr)
-      XBT_INFO("pimpl_->state: %d", static_cast<int>(pimpl_->state_));
+      XBT_INFO("pimpl_->state: %s", pimpl_->get_state_str());
     else
       XBT_INFO("pimpl_ is null");
     xbt_backtrace_display_current();
@@ -112,6 +116,11 @@ CommPtr Comm::set_dst_data(void** buff, size_t size)
   xbt_assert(src_buff_ == nullptr, "Cannot set the src and dst buffers at the same time");
   dst_buff_      = buff;
   dst_buff_size_ = size;
+  return this;
+}
+Comm* Comm::set_payload_size(double bytes)
+{
+  set_remaining(bytes);
   return this;
 }
 
