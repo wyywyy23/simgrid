@@ -987,3 +987,5 @@ teshsuite/smpi/topo-cart-sub/topo-cart-sub
 teshsuite/surf/wifi_usage_decay/wifi_usage_decay
 .vscode/c_cpp_properties.json
 .vscode/settings.json
+examples/s4u/comm-pingpong/s4u-comm-pingpong
+examples/c/comm-pingpong/c-comm-pingpong
