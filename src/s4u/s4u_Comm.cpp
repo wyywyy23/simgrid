@@ -118,9 +118,9 @@ CommPtr Comm::set_dst_data(void** buff, size_t size)
   dst_buff_size_ = size;
   return this;
 }
-Comm* Comm::set_payload_size(double bytes)
+CommPtr Comm::set_payload_size(double bytes)
 {
-  set_remaining(bytes);
+  Activity::set_remaining(bytes);
   return this;
 }
 
@@ -132,10 +132,11 @@ CommPtr Comm::sendto_init(Host* from, Host* to)
 
   return res;
 }
+
 CommPtr Comm::sendto_async(Host* from, Host* to, double simulated_size_in_bytes)
 {
-  auto res = Comm::sendto_init(from, to);
-  res->set_remaining(simulated_size_in_bytes)->start();
+  auto res = Comm::sendto_init(from, to)->set_payload_size(simulated_size_in_bytes);
+  res->vetoable_start();
   return res;
 }
 
@@ -195,7 +196,7 @@ Comm* Comm::wait_for(double timeout)
     case State::INITED:
     case State::STARTING: // It's not started yet. Do it in one simcall if it's a regular communication
       if (from_ != nullptr || to_ != nullptr) {
-        return start()->wait_for(timeout); // In the case of host2host comm, do it in two simcalls
+        return vetoable_start()->wait_for(timeout); // In the case of host2host comm, do it in two simcalls
       } else if (src_buff_ != nullptr) {
         on_start(*this, true /*is_sender*/);
         simcall_comm_send(sender_, mailbox_->get_impl(), remains_, rate_, src_buff_, src_buff_size_, match_fun_,

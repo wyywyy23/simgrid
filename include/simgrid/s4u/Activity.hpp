@@ -33,6 +33,8 @@ protected:
   Activity()  = default;
   virtual ~Activity() = default;
 
+  virtual bool is_assigned() const = 0;
+
   void release_dependencies()
   {
     while (not successors_.empty()) {
@@ -56,8 +58,8 @@ public:
   void vetoable_start()
   {
     state_ = State::STARTING;
-    if (dependencies_.empty()) {
-      XBT_CVERB(s4u_activity, "All dependencies are solved, let's start '%s'", get_cname());
+    if (dependencies_.empty() && is_assigned()) {
+      XBT_CVERB(s4u_activity, "'%s' is assigned to a resource and all dependencies are solved. Let's start", get_cname());
       start();
     }
   }
@@ -176,6 +178,12 @@ public:
   }
 
   void* get_user_data() const { return user_data_; }
+
+  AnyActivity* vetoable_start()
+  {
+    Activity::vetoable_start();
+    return static_cast<AnyActivity*>(this);
+  }
 #ifndef DOXYGEN
   /* The refcounting is done in the ancestor class, Activity, but we want each of the classes benefiting of the CRTP
    * (Exec, Comm, etc) to have smart pointers too, so we define these methods here, that forward the ptr_release and
