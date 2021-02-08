@@ -656,6 +656,10 @@ include teshsuite/kernel/context-defaults/factory_boost.tesh
 include teshsuite/kernel/context-defaults/factory_raw.tesh
 include teshsuite/kernel/context-defaults/factory_thread.tesh
 include teshsuite/kernel/context-defaults/factory_ucontext.tesh
+include teshsuite/kernel/simcall-generic/simcall-generic.cpp
+include teshsuite/kernel/simcall-generic/simcall-generic.tesh
+include teshsuite/kernel/stack-overflow/stack-overflow.cpp
+include teshsuite/kernel/stack-overflow/stack-overflow.tesh
 include teshsuite/mc/dwarf-expression/dwarf-expression.cpp
 include teshsuite/mc/dwarf-expression/dwarf-expression.tesh
 include teshsuite/mc/dwarf/dwarf.cpp
@@ -667,6 +671,12 @@ include teshsuite/mc/random-bug/random-bug-nocrash.tesh
 include teshsuite/mc/random-bug/random-bug-replay.tesh
 include teshsuite/mc/random-bug/random-bug.cpp
 include teshsuite/mc/random-bug/random-bug.tesh
+include teshsuite/models/cloud-sharing/cloud-sharing.cpp
+include teshsuite/models/cloud-sharing/cloud-sharing.tesh
+include teshsuite/models/wifi_usage/wifi_usage.cpp
+include teshsuite/models/wifi_usage/wifi_usage.tesh
+include teshsuite/models/wifi_usage_decay/wifi_usage_decay.cpp
+include teshsuite/models/wifi_usage_decay/wifi_usage_decay.tesh
 include teshsuite/msg/task_destroy_cancel/task_destroy_cancel.c
 include teshsuite/msg/task_destroy_cancel/task_destroy_cancel.tesh
 include teshsuite/python/borken-context/borken-context.py
@@ -679,6 +689,7 @@ include teshsuite/s4u/activity-lifecycle/activity-lifecycle.cpp
 include teshsuite/s4u/activity-lifecycle/activity-lifecycle.hpp
 include teshsuite/s4u/activity-lifecycle/activity-lifecycle.tesh
 include teshsuite/s4u/activity-lifecycle/testing_comm.cpp
+include teshsuite/s4u/activity-lifecycle/testing_comm_direct.cpp
 include teshsuite/s4u/activity-lifecycle/testing_exec.cpp
 include teshsuite/s4u/activity-lifecycle/testing_platform.xml
 include teshsuite/s4u/activity-lifecycle/testing_sleep.cpp
@@ -693,8 +704,6 @@ include teshsuite/s4u/basic-link-test/basic-link-test.cpp
 include teshsuite/s4u/basic-link-test/basic-link-test.tesh
 include teshsuite/s4u/cloud-interrupt-migration/cloud-interrupt-migration.cpp
 include teshsuite/s4u/cloud-interrupt-migration/cloud-interrupt-migration.tesh
-include teshsuite/s4u/cloud-sharing/cloud-sharing.cpp
-include teshsuite/s4u/cloud-sharing/cloud-sharing.tesh
 include teshsuite/s4u/cloud-two-execs/cloud-two-execs.cpp
 include teshsuite/s4u/cloud-two-execs/cloud-two-execs.tesh
 include teshsuite/s4u/comm-get-sender/comm-get-sender.cpp
@@ -815,10 +824,6 @@ include teshsuite/simdag/platforms/two_clusters_router_id.xml
 include teshsuite/simdag/platforms/two_hosts_multi_hop.xml
 include teshsuite/simdag/platforms/two_hosts_one_link.xml
 include teshsuite/simdag/platforms/two_hosts_one_link_splitduplex.xml
-include teshsuite/simix/generic-simcalls/generic-simcalls.cpp
-include teshsuite/simix/generic-simcalls/generic-simcalls.tesh
-include teshsuite/simix/stack-overflow/stack-overflow.cpp
-include teshsuite/simix/stack-overflow/stack-overflow.tesh
 include teshsuite/smpi/auto-shared/auto-shared.c
 include teshsuite/smpi/auto-shared/auto-shared.tesh
 include teshsuite/smpi/bug-17132/bug-17132.c
@@ -1707,10 +1712,6 @@ include teshsuite/surf/surf_usage/surf_usage.cpp
 include teshsuite/surf/surf_usage/surf_usage.tesh
 include teshsuite/surf/surf_usage2/surf_usage2.cpp
 include teshsuite/surf/surf_usage2/surf_usage2.tesh
-include teshsuite/surf/wifi_usage/wifi_usage.cpp
-include teshsuite/surf/wifi_usage/wifi_usage.tesh
-include teshsuite/surf/wifi_usage_decay/wifi_usage_decay.cpp
-include teshsuite/surf/wifi_usage_decay/wifi_usage_decay.tesh
 include teshsuite/xbt/cmdline/cmdline.c
 include teshsuite/xbt/cmdline/cmdline.tesh
 include teshsuite/xbt/log_large/log_large.c
@@ -2682,11 +2683,11 @@ include teshsuite/kernel/CMakeLists.txt
 include teshsuite/lua/CMakeLists.txt
 include teshsuite/lua/lua_platforms.tesh
 include teshsuite/mc/CMakeLists.txt
+include teshsuite/models/CMakeLists.txt
 include teshsuite/msg/CMakeLists.txt
 include teshsuite/python/CMakeLists.txt
 include teshsuite/s4u/CMakeLists.txt
 include teshsuite/simdag/CMakeLists.txt
-include teshsuite/simix/CMakeLists.txt
 include teshsuite/smpi/CMakeLists.txt
 include teshsuite/smpi/isp/umpire/CMakeLists.txt
 include teshsuite/smpi/mpich3-test/CMakeLists.txt

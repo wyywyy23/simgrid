@@ -1022,11 +1022,11 @@ set(CMAKEFILES_TXT
   teshsuite/kernel/CMakeLists.txt
   teshsuite/lua/CMakeLists.txt
   teshsuite/mc/CMakeLists.txt
+  teshsuite/models/CMakeLists.txt
   teshsuite/msg/CMakeLists.txt
   teshsuite/python/CMakeLists.txt
   teshsuite/s4u/CMakeLists.txt
   teshsuite/simdag/CMakeLists.txt
-  teshsuite/simix/CMakeLists.txt
   teshsuite/smpi/CMakeLists.txt
   teshsuite/surf/CMakeLists.txt
   teshsuite/xbt/CMakeLists.txt
