@@ -10,6 +10,8 @@
 #include "src/surf/surf_interface.hpp"
 #include "surf/surf.hpp"
 #include "simgrid/s4u.hpp"
+#include "src/kernel/activity/CommImpl.hpp"
+#include <iostream>
 
 #include <limits>
 
@@ -17,7 +19,7 @@ SIMGRID_REGISTER_PLUGIN(dlps, "Link DLPS.", &sg_dlps_plugin_init)
 
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(dlps, surf, "Logging specific to the SURF DLPS plugin");
 
-const double delay_tuning = 1.0e-4;
+const double delay_tuning = 1.0e-3;
 const double delay_laser_stabilizing = 10.0e-9;
 const double delay_laser_waking = 1.0e-9;
 
@@ -193,9 +195,7 @@ void DLPS::update_on_comm_end()
   XBT_INFO("%s,finished,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
 
   update_load();
-  if (current_instantaneous_bytes_per_second == 0) {
-    last_busy_ = now;
-  }
+  last_busy_ = now;
 }
 
 s4u::Link* DLPS::get_s4u_link() {
@@ -255,7 +255,8 @@ using simgrid::plugin::DLPS;
 static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
 {
   // XBT_DEBUG("on_communicate is called");
-  action.suspend();
+  
+  // action.suspend();
   double max_latency = 0.0;
   for (auto* link : action.get_links()) {
     if (link == nullptr || link->get_sharing_policy() == simgrid::s4u::Link::SharingPolicy::WIFI)
@@ -266,8 +267,8 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
       max_latency = std::max(max_latency, dlps->update_on_comm_start());
     }
   }
-  //action.get_model()->get_action_heap().update(&action, surf_get_clock() + max_latency, action.get_type());
-  action.resume();
+  action.get_model()->get_action_heap().update(&action, action.get_planned_finish_date() + max_latency, action.get_type());
+  // action.resume();
 
 }
 
@@ -279,6 +280,39 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
       if (dlps->is_enabled()) {
         if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
           dlps->update_on_comm_end();
+      }
+    }
+  }
+}
+
+static void on_comm_start(const simgrid::s4u::Comm& comm, bool is_sender) {
+  double max_latency = 0.0;
+  std::cerr << "Here1" << std::endl;
+  if (simgrid::kernel::resource::NetworkAction* action = dynamic_cast<simgrid::kernel::resource::NetworkAction*>(comm.get_impl()->get_surf_action())) {
+    std::cerr << "Here2" << std::endl;
+    for (auto const* link: action->get_links()) {
+      std::cerr << "Here3" << std::endl;
+      if (link == nullptr || link->get_sharing_policy() == simgrid::s4u::Link::SharingPolicy::WIFI)
+        continue;
+
+      auto dlps = link->get_iface()->extension<DLPS>();
+      if (dlps->is_enabled()) {
+        max_latency = std::max(max_latency, dlps->update_on_comm_start());
+      }
+    }
+    action->get_model()->get_action_heap().update(action, surf_get_clock() + max_latency, action->get_type());
+  }
+}
+
+static void on_comm_completion(const simgrid::s4u::Comm& comm) {
+  if (simgrid::kernel::resource::NetworkAction* action = dynamic_cast<simgrid::kernel::resource::NetworkAction*>(comm.get_impl()->get_surf_action())) {
+    for (auto const* link: action->get_links()) {
+      if (link == nullptr || link->get_sharing_policy() == simgrid::s4u::Link::SharingPolicy::WIFI)
+        continue;
+
+      auto dlps = link->get_iface()->extension<DLPS>();
+      if (dlps->is_enabled()) {
+        dlps->update_on_comm_end();
       }
     }
   }
@@ -321,6 +355,8 @@ void sg_dlps_plugin_init()
   // Call this plugin on some of the links' events.
   simgrid::s4u::Link::on_communication_state_change.connect(&on_communication_state_change);
   simgrid::s4u::Link::on_communicate.connect(&on_communicate);
+  // simgrid::s4u::Comm::on_start.connect(&on_comm_start);
+  // simgrid::s4u::Comm::on_completion.connect(&on_comm_completion);
 
 }
 

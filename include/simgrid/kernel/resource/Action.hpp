@@ -229,9 +229,11 @@ private:
 
   ActionHeap::Type type_                              = ActionHeap::Type::unset;
   boost::optional<ActionHeap::handle_type> heap_hook_ = boost::none;
+  double planned_finish_date_                          = -1.0;
 
 public:
   ActionHeap::Type get_type() const { return type_; }
+  double get_planned_finish_date() const { return planned_finish_date_; }
 
   lmm::Variable* get_variable() const { return variable_; }
   void set_variable(lmm::Variable* var) { variable_ = var; }

@@ -33,6 +33,7 @@ public:
   State state_   = State::WAITING;      /* State of the activity */
   std::list<smx_simcall_t> simcalls_;   /* List of simcalls waiting for this activity */
   resource::Action* surf_action_ = nullptr;
+  resource::Action* get_surf_action() { return surf_action_; };
 
 protected:
   void inline set_name(const std::string& name)
