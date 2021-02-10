@@ -1007,7 +1007,7 @@ set(txt_files
 # Add your CMakeLists file here to see your subdir built.
 set(CMAKEFILES_TXT
   examples/c/CMakeLists.txt
-  examples/s4u/CMakeLists.txt
+  examples/cpp/CMakeLists.txt
   examples/smpi/CMakeLists.txt
   examples/smpi/NAS/CMakeLists.txt
   examples/smpi/smpi_s4u_masterworker/CMakeLists.txt
