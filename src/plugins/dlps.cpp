@@ -17,6 +17,13 @@ SIMGRID_REGISTER_PLUGIN(dlps, "Link DLPS.", &sg_dlps_plugin_init)
 
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(dlps, surf, "Logging specific to the SURF DLPS plugin");
 
+const double delay_tuning = 1.0e-3;
+const double delay_laser_stabilizing = 10.0e-9;
+const double delay_laser_waking = 1.0e-9;
+
+const double idle_threshold_tuning = 1.0e-3;
+const double idle_threshold_laser = 300.0e-9;
+
 namespace simgrid {
 namespace plugin {
 
@@ -30,13 +37,18 @@ public:
   void enable();
   void disable();
   void reset();
-  void update();
-  double get_average_bytes();
+  void update_on_comm_start();
+  void update_on_comm_end();
+  void update_load();
 
   /// Getter methods.
   bool is_enabled() const;
   s4u::Link* get_s4u_link();
+  double get_last_updated();
+  double get_last_busy();
+  double get_average_bytes();
   double get_cumulated_bytes();
+  double get_cumulated_energy();
   double get_min_bytes_per_second();
   double get_max_bytes_per_second();
 
@@ -44,16 +56,19 @@ private:
   s4u::Link* link_{};      /*< The link onto which this data is enabled*/
   bool is_enabled_{false}; /*<Whether the link is enabled or not*/
 
-  double cumulated_bytes_{};      /*< Cumulated load since last reset*/
-  double min_bytes_per_second_{}; /*< Minimum instantaneous load observed since last reset*/
-  double max_bytes_per_second_{}; /*< Maximum instantaneous load observed since last reset*/
-  double last_reset_{};           /*< Timestamp of the last reset (init timestamp by default)*/
-  double last_updated_{};         /*< Timestamp of the last energy update event*/
+  double original_latency_{};  // Back up of original latency;
+
+  double cumulated_bytes_{0.0};      /*< Cumulated load since last reset*/
+  double min_bytes_per_second_{0.0}; /*< Minimum instantaneous load observed since last reset*/
+  double max_bytes_per_second_{0.0}; /*< Maximum instantaneous load observed since last reset*/
+  double last_reset_{-1.0};          /*< Timestamp of the last reset (init timestamp by default)*/
+  double last_updated_{-1.0};        /*< Timestamp of the last update event*/
+  double last_busy_{-1.0};            // Timestamp when the last communication ended
 };
 
 xbt::Extension<s4u::Link, DLPS> DLPS::EXTENSION_ID;
 
-DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false)
+DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false), original_latency_(ptr->get_latency())
 {
   XBT_DEBUG("Instantiating a DLPS for link '%s'", link_->get_cname());
 }
@@ -89,7 +104,7 @@ void DLPS::reset()
   last_updated_ = last_reset_;
 }
 
-void DLPS::update()
+void DLPS::update_load()
 {
   XBT_DEBUG("Updating load of link '%s'", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -100,10 +115,6 @@ void DLPS::update()
   std::string link_name = link_->get_cname();
   double current_instantaneous_bytes_per_second = link_->get_usage();
   double now                                    = surf_get_clock();
-  
-//  if (link_name[1] != 'a' and link_name[1] != 'o') {
-//    XBT_INFO("%s,usage,%.17f,%f\n", link_->get_cname(), now, current_instantaneous_bytes_per_second);
-//  }
 
   // Update minimum/maximum observed values if needed
   min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
@@ -120,6 +131,68 @@ void DLPS::update()
   last_updated_ = now;
 }
 
+void DLPS::update_on_comm_start()
+{
+  XBT_DEBUG("Updating load of link '%s' on communication start", link_->get_cname());
+  xbt_assert(is_enabled_,
+             "Trying to update load of link '%s' while it is NOT enabled, aborting."
+             " Please enable your link with sg_dlps_enable before trying to access any of its load metrics.",
+             link_->get_cname());
+
+  std::string link_name = link_->get_cname();
+  double current_instantaneous_bytes_per_second = link_->get_usage();
+  double now                                    = surf_get_clock();
+  double this_latency = original_latency_;
+
+  // Check the interval from last busy
+  if (last_busy_ < 0) { // Never communicated
+    this_latency += delay_tuning + delay_laser_stabilizing;
+    link_->set_latency(this_latency);
+    XBT_INFO("%s,tuning,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,lasering,%.17f,%f\n", link_name.c_str(), now + delay_tuning, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now + delay_tuning + delay_laser_stabilizing, current_instantaneous_bytes_per_second);
+  } else if (now - last_busy_ > idle_threshold_tuning) { // Idled till tuning is off
+    this_latency += delay_tuning + delay_laser_stabilizing;
+    link_->set_latency(this_latency);
+    XBT_INFO("%s,tuning,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,lasering,%.17f,%f\n", link_name.c_str(), now + delay_tuning, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now + delay_tuning + delay_laser_stabilizing, current_instantaneous_bytes_per_second);
+  } else if (now - last_busy_ > idle_threshold_laser) { // Idled till laser is off, but tuning is on
+    this_latency += delay_laser_stabilizing;
+    link_->set_latency(this_latency);
+    XBT_INFO("%s,lasering,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now + delay_laser_stabilizing, current_instantaneous_bytes_per_second);
+  } else if (now - last_busy_ > 0) { // Idled till laser is sleeping
+    this_latency += delay_laser_waking;
+    link_->set_latency(this_latency);
+    XBT_INFO("%s,waking,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+    XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now + delay_laser_waking, current_instantaneous_bytes_per_second);
+  } else {  // Did not sleep at all
+    link_->set_latency(this_latency);
+    XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+  }
+
+  last_updated_ = now + this_latency - original_latency_;
+}
+
+void DLPS::update_on_comm_end()
+{
+  XBT_DEBUG("Updating load of link '%s' on communication end", link_->get_cname());
+  xbt_assert(is_enabled_,
+             "Trying to update load of link '%s' while it is NOT enabled, aborting."
+             " Please enable your link with sg_dlps_enable before trying to access any of its load metrics.",
+             link_->get_cname());
+
+  std::string link_name = link_->get_cname();
+  double current_instantaneous_bytes_per_second = link_->get_usage();
+  double now                                    = surf_get_clock();
+
+  XBT_INFO("%s,finished,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+
+  update_load();
+  last_busy_ = now;
+}
+
 s4u::Link* DLPS::get_s4u_link() {
   return link_;
 }
@@ -128,25 +201,38 @@ bool DLPS::is_enabled() const
 {
   return is_enabled_;
 }
+
+double DLPS::get_last_updated()
+{
+  return last_updated_;
+}
+
+double DLPS::get_last_busy()
+{
+  return last_busy_;
+}
+
 double DLPS::get_cumulated_bytes()
 {
-  update();
+  update_load();
   return cumulated_bytes_;
 }
+
 double DLPS::get_min_bytes_per_second()
 {
-  update();
+  update_load();
   return min_bytes_per_second_;
 }
+
 double DLPS::get_max_bytes_per_second()
 {
-  update();
+  update_load();
   return max_bytes_per_second_;
 }
 
 double DLPS::get_average_bytes()
 {
-  update();
+  update_load();
 
   double now = surf_get_clock();
   if (now > last_reset_)
@@ -170,17 +256,20 @@ static void on_communicate(const simgrid::kernel::resource::NetworkAction& actio
 
     auto dlps = link->get_iface()->extension<DLPS>();
     if (dlps->is_enabled()) {
-      dlps->update();
+      dlps->update_on_comm_start();
+    }
+  }
+}
 
-      std::string link_name = dlps->get_s4u_link()->get_cname();
-      double current_instantaneous_bytes_per_second = dlps->get_s4u_link()->get_usage();
-      double now                                    = surf_get_clock();
-
-      if (link_name[1] != 'a' and link_name[1] != 'o') {
-        XBT_INFO("%s,communicate,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
-//        XBT_INFO("%s,status,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
+static void on_communication_state_change(const simgrid::kernel::resource::NetworkAction& action,
+         simgrid::kernel::resource::Action::State) {
+  for (auto const* link : action.get_links()) {
+    if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
+      auto dlps = link->get_iface()->extension<DLPS>();
+      if (dlps->is_enabled()) {
+        if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
+          dlps->update_on_comm_end();
       }
-
     }
   }
 }
@@ -220,50 +309,9 @@ void sg_dlps_plugin_init()
   });
 
   // Call this plugin on some of the links' events.
+  simgrid::s4u::Link::on_communication_state_change.connect(&on_communication_state_change);
   simgrid::s4u::Link::on_communicate.connect(&on_communicate);
-  simgrid::s4u::Link::on_state_change.connect([](simgrid::s4u::Link const& link) {
-    if (link.get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
-      auto dlps = link.extension<DLPS>();
-      if (dlps->is_enabled())
-        dlps->update();
-    }
-  });
-  simgrid::s4u::Link::on_communication_state_change.connect(
-      [](simgrid::kernel::resource::NetworkAction const& action,
-         simgrid::kernel::resource::Action::State) {
-        for (auto const* link : action.get_links()) {
-          if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
-            auto dlps = link->get_iface()->extension<DLPS>();
-            if (dlps->is_enabled()) {
-              dlps->update();
 
-              std::string link_name = dlps->get_s4u_link()->get_cname();
-              double current_instantaneous_bytes_per_second = dlps->get_s4u_link()->get_usage();
-              double now                                    = surf_get_clock();
-	      std::string current_state                     = "";
-
-	      switch (action.get_state()) {
-		case simgrid::kernel::resource::Action::State::INITED : 
-			current_state = "initialized"; break;
-		case simgrid::kernel::resource::Action::State::STARTED : 
-			current_state = "started"; break;
-		case simgrid::kernel::resource::Action::State::FAILED : 
-			current_state = "failed"; break;
-		case simgrid::kernel::resource::Action::State::FINISHED : 
-			current_state = "finished"; break;
-		case simgrid::kernel::resource::Action::State::IGNORED : 
-			current_state = "ignored"; break;
-	      }
-
-              if (link_name[1] != 'a' and link_name[1] != 'o') {
-                XBT_INFO("%s,%s,%.17f,%f\n", link_name.c_str(), current_state.c_str(), now, current_instantaneous_bytes_per_second);
-//                XBT_INFO("%s,status,%.17f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second);
-              }
-	    }
-	      
-          }
-        }
-      });
 }
 
 /**

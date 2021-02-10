@@ -11,6 +11,7 @@
 #include "simgrid/s4u/Link.hpp"
 #include "src/kernel/lmm/maxmin.hpp"
 #include <xbt/PropertyHolder.hpp>
+#include "xbt/utility.hpp"
 
 #include <list>
 #include <unordered_map>
@@ -158,6 +159,14 @@ public:
 
   Metric latency_                   = {0.0, 0, nullptr};
   Metric bandwidth_                 = {1.0, 0, nullptr};
+
+  /** wyy: more states for links */
+  XBT_DECLARE_ENUM_CLASS(State, OFF, STANDBY, READY, ON);
+  void set_state(LinkImpl::State state);
+  LinkImpl::State get_state() const { return state_; };
+  const char* get_state_str() const;
+  LinkImpl::State state_;
+
 };
 
 /**********
