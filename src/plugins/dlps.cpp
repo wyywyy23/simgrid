@@ -177,6 +177,7 @@ double DLPS::update_on_comm_start()
   }
 
   update_load();
+  last_updated_ = now + this_latency;
   return this_latency;
 }
 
