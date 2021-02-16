@@ -246,10 +246,40 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->latency_ *= get_latency_factor(size);
   action->rate_ = get_bandwidth_constraint(action->rate_, bandwidth_bound, size);
 
+  // DLPS
+  double extra_latency = 0.0;
+  std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
+  for (auto const& link : route) {
+    double this_latency = 0.0;
+    if (link->get_last_busy() < 0 && link->get_constraint()->get_usage() == 0) {
+      this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
+                   : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : 0.0));
+    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_tuning && link->get_constraint()->get_usage() == 0) {
+      this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
+                   : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : 0.0));
+    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_laser && link->get_constraint()->get_usage() == 0) {
+      this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing
+                   : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
+                   : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : 0.0));
+    } else if (surf_get_clock() - link->get_last_busy() > 0 && link->get_constraint()->get_usage() == 0) {
+      this_latency += dlps_mode == "full" ? dlps_delay_laser_waking
+                   : (dlps_mode == "laser" ? dlps_delay_laser_waking
+                   : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
+                   : 0.0));
+    } else {}
+    extra_latency = std::max(extra_latency, this_latency);
+  }
+
   size_t constraints_per_variable = route.size();
   constraints_per_variable += back_route.size();
 
   if (action->latency_ > 0) {
+    action->latency_ += extra_latency; // DLPS latency
     action->set_variable(get_maxmin_system()->variable_new(action, 0.0, -1.0, constraints_per_variable));
     if (is_update_lazy()) {
       // add to the heap the event when the latency is paid

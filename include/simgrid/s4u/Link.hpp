@@ -57,6 +57,9 @@ public:
   /** Set the bandwidth of the current Link (in bytes per second) */
   void set_bandwidth(double value);
 
+  double get_last_busy();
+  void set_last_busy(double value);
+
   /** Get the latency of the current Link (in seconds) */
   double get_latency() const;
   /** Set the latency of the current Link (in seconds) */
