@@ -93,6 +93,9 @@ static void sg_config_cmd_line(int *argc, char **argv)
       model_help("CPU", surf_cpu_model_description);
       XBT_HELP("%s", "");
       model_help("network", surf_network_model_description);
+      XBT_HELP("\nLong description of all dlps modes accepted by the models of this simulator:");
+      for (auto const& item : surf_dlps_mode_description)
+        XBT_HELP("  %s: %s", item.name, item.description);
       XBT_HELP("\nLong description of all optimization levels accepted by the models of this simulator:");
       for (auto const& item : surf_optimization_mode_description)
         XBT_HELP("  %s: %s", item.name, item.description);
@@ -156,6 +159,20 @@ static void _sg_cfg_cb__cpu_model(const std::string& value)
 
   /* New Module missing */
   find_model_description(surf_cpu_model_description, value);
+}
+
+/* callback of the dlps mode variable */
+static void _sg_cfg_cb__dlps_mode(const std::string& value)
+{
+  xbt_assert(_sg_cfg_init_status < 2, "Cannot change the model after the initialization");
+
+  if (value == "help") {
+    model_help("optimization", surf_dlps_mode_description);
+    exit(0);
+  }
+
+  /* New Module missing */
+  find_model_description(surf_dlps_mode_description, value);
 }
 
 /* callback of the cpu/model variable */
@@ -248,6 +265,9 @@ void sg_config_init(int *argc, char **argv)
 
   declare_model_flag("network/model", "LV08", &_sg_cfg_cb__network_model, surf_network_model_description, "model",
                      "The model to use for the network");
+
+  declare_model_flag("network/dlps", "none", &_sg_cfg_cb__dlps_mode, surf_dlps_mode_description,
+                     "dlps mode", "The dlps mode to use for the network");
 
   declare_model_flag("network/optim", "Lazy", &_sg_cfg_cb__optimization_mode, surf_optimization_mode_description,
                      "optimization mode", "The optimization modes to use for the network");

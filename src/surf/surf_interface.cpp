@@ -100,6 +100,13 @@ const std::vector<surf_model_description_t> surf_host_model_description = {
      &surf_host_model_init_ptask_L07},
 };
 
+const std::vector<surf_model_description_t> surf_dlps_mode_description = {
+    {"none", "DLPS is diabled. Links are always on.", nullptr},
+    {"on-off", "Links are switched between on and off.", nullptr},
+    {"laser", "DLPS is enabled for lasers. Microring tuning is always on.", nullptr},
+    {"full", "DLPS is enabled for both lasers and microring tuning.", nullptr},
+};
+
 const std::vector<surf_model_description_t> surf_optimization_mode_description = {
     {"Lazy", "Lazy action management (partial invalidation in lmm + heap in action remaining).", nullptr},
     {"TI", "Trace integration. Highly optimized mode when using availability traces (only available for the Cas01 CPU "

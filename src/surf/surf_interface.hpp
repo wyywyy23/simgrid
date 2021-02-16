@@ -202,6 +202,7 @@ XBT_PUBLIC void simgrid_add_plugin_description(const char* name, const char* des
 XBT_PUBLIC_DATA std::vector<surf_model_description_t>* surf_plugin_description;
 /** @brief The list of all available optimization modes (both for cpu and networks).
  *  These optimization modes can be set using --cfg=cpu/optim:... and --cfg=network/optim:... */
+XBT_PUBLIC_DATA const std::vector<surf_model_description_t> surf_dlps_mode_description;
 XBT_PUBLIC_DATA const std::vector<surf_model_description_t> surf_optimization_mode_description;
 /** @brief The list of all cpu models (pick one with --cfg=cpu/model) */
 XBT_PUBLIC_DATA const std::vector<surf_model_description_t> surf_cpu_model_description;
