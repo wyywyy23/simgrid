@@ -20,6 +20,13 @@ double sg_latency_factor = 1.0; /* default value; can be set by model or from co
 double sg_bandwidth_factor = 1.0;       /* default value; can be set by model or from command line */
 double sg_weight_S_parameter = 0.0;     /* default value; can be set by model or from command line */
 
+double dlps_delay_tuning = 1.0e-3;
+double dlps_delay_laser_stabilizing = 10.0e-9;
+double dlps_delay_laser_waking = 1.0e-9;
+
+double dlps_idle_threshold_tuning = 1.0e-3;
+double dlps_idle_threshold_laser = 300.0e-9;
+
 /************************************************************************/
 /* New model based on optimizations discussed during Pedro Velho's thesis*/
 /************************************************************************/

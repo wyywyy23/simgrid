@@ -306,6 +306,26 @@ void sg_config_init(int *argc, char **argv)
                                       "latency of the loopback link. 0 by default",
                                       0);
 
+  dlps_delay_tuning = 1.0e-3;
+  simgrid::config::bind_flag(dlps_delay_tuning, "network/dlps/delay/tuning",
+                             "Delay in seconds for microring tuning.");
+
+  dlps_delay_laser_stabilizing = 10.0e-9;
+  simgrid::config::bind_flag(dlps_delay_laser_stabilizing, "network/dlps/delay/laser-stabilizing",
+                             "Delay in seconds for laser stabilization.");
+
+  dlps_delay_laser_waking = 1.0e-9;
+  simgrid::config::bind_flag(dlps_delay_laser_waking, "network/dlps/delay/laser-waking",
+                             "Delay in seconds for laser waking");
+
+  dlps_idle_threshold_tuning = 1.0e-3;
+  simgrid::config::bind_flag(dlps_idle_threshold_tuning, "network/dlps/idle-threshold/tuning",
+                             "Threshold idle time in seconds to turn off tuning.");
+
+  dlps_idle_threshold_laser = 300.0e-9;
+  simgrid::config::bind_flag(dlps_idle_threshold_laser, "network/dlps/idle-threshold/laser",
+                             "Threshold idle time in seconds to turn off laser.");
+
   simgrid::config::declare_flag<double>("network/loopback-bw",
                                       "For network models with an implicit loopback link (L07, CM02, LV08), "
                                       "bandwidth of the loopback link. 10GBps by default",

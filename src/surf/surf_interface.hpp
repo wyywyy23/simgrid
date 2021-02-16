@@ -31,6 +31,13 @@ extern XBT_PRIVATE double sg_weight_S_parameter;
 extern XBT_PRIVATE std::vector<std::string> surf_path;
 extern XBT_PRIVATE std::unordered_map<std::string, simgrid::kernel::profile::Profile*> traces_set_list;
 
+extern XBT_PRIVATE double dlps_delay_tuning;
+extern XBT_PRIVATE double dlps_delay_laser_stabilizing;
+extern XBT_PRIVATE double dlps_delay_laser_waking;
+
+extern XBT_PRIVATE double dlps_idle_threshold_tuning;
+extern XBT_PRIVATE double dlps_idle_threshold_laser;
+
 /** set of hosts for which one want to be notified if they ever restart */
 inline auto& watched_hosts() // avoid static initialization order fiasco
 {
