@@ -251,27 +251,30 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
   for (auto const& link : route) {
     double this_latency = 0.0;
-    if (link->get_last_busy() < 0 && link->get_constraint()->get_usage() == 0) {
+    const char* link_name = link->get_iface()->get_cname();
+    if (link_name[1] != 'i' || link->get_constraint()->get_usage() > 0) {
+      continue;
+    } else if (link->get_last_busy() < 0) {
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
                    : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : 0.0));
-    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_tuning && link->get_constraint()->get_usage() == 0) {
+    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_tuning) {
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
                    : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : 0.0));
-    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_laser && link->get_constraint()->get_usage() == 0) {
+    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_laser) {
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing
                    : (dlps_mode == "laser" ? dlps_delay_laser_stabilizing
                    : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : 0.0));
-    } else if (surf_get_clock() - link->get_last_busy() > 0 && link->get_constraint()->get_usage() == 0) {
+    } else if (surf_get_clock() - link->get_last_busy() > 0) {
       this_latency += dlps_mode == "full" ? dlps_delay_laser_waking
                    : (dlps_mode == "laser" ? dlps_delay_laser_waking
                    : (dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
                    : 0.0));
-    } else {}
+    } else {continue;}
     extra_latency = std::max(extra_latency, this_latency);
   }
 
