@@ -2010,6 +2010,7 @@ include include/simgrid/modelchecker.h
 include include/simgrid/msg.h
 include include/simgrid/mutex.h
 include include/simgrid/plugins/dlps.h
+include include/simgrid/plugins/dlps.hpp
 include include/simgrid/plugins/dvfs.h
 include include/simgrid/plugins/energy.h
 include include/simgrid/plugins/file_system.h

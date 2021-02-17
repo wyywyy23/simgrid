@@ -71,6 +71,11 @@ void Link::set_bandwidth(double value)
   kernel::actor::simcall([this, value] { pimpl_->set_bandwidth(value); });
 }
 
+/** wyy: more states */
+const char* Link::get_last_state_str() const {
+  return to_c_str(last_state_);
+}
+
 double Link::get_last_busy() {
   return this->pimpl_->get_last_busy();
 }

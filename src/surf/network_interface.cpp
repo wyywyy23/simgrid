@@ -168,11 +168,6 @@ void LinkImpl::set_latency_profile(profile::Profile* profile)
   latency_.event = profile->schedule(&profile::future_evt_set, this);
 }
 
-/** wyy: more states */
-const char* LinkImpl::get_state_str() const {
-  return to_c_str(state_);
-}
-
 /**********
  * Action *
  **********/

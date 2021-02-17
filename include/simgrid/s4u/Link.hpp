@@ -91,6 +91,13 @@ public:
   bool is_on() const;
   void turn_off();
 
+  /** wyy: more states for links */
+  XBT_DECLARE_ENUM_CLASS(State, OFF, STANDBY, READY, ON);
+  void set_last_state(Link::State state) { last_state_ = state; }
+  Link::State get_last_state() const { return last_state_; }
+  const char* get_last_state_str() const;
+  Link::State last_state_;
+
   /** Setup the profile with states events (ON or OFF). The profile must contain boolean values. */
   void set_state_profile(kernel::profile::Profile* profile);
   /** Setup the profile with bandwidth events (peak speed changes due to external load).

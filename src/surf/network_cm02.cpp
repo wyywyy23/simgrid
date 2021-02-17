@@ -10,6 +10,7 @@
 #include "src/surf/network_wifi.hpp"
 #include "src/surf/surf_interface.hpp"
 #include "surf/surf.hpp"
+#include "simgrid/plugins/dlps.hpp"
 
 #include <algorithm>
 #include <numeric>
@@ -251,8 +252,10 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
   for (auto const& link : route) {
     double this_latency = 0.0;
-    const char* link_name = link->get_iface()->get_cname();
-    if (link_name[1] != 'i' || link->get_constraint()->get_usage() > 0) {
+    if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
+      continue;
+    } else if (link->get_constraint()->get_usage() > 0) {
+      link->get_iface()->set_last_state(s4u::Link::State::ON);
       continue;
     } else if (link->get_last_busy() < 0) {
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing
