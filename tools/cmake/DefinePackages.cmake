@@ -1165,6 +1165,7 @@ set(PLATFORMS_EXAMPLES
   examples/platforms/multicore_machine.xml
   examples/platforms/ns3-big-cluster.xml
   examples/platforms/onelink.xml
+  examples/platforms/ptask_L07.xml
   examples/platforms/prop.xml
   examples/platforms/routing_cluster.xml
   examples/platforms/routing_cluster.lua
