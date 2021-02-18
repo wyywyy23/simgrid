@@ -1,6 +1,4 @@
-foreach(x availability basic0 basic1 basic3 basic4 basic5 basic6
-          comm-mxn-all2all comm-mxn-independent comm-mxn-scatter
-          comm-p2p-latency-bound incomplete)
+foreach(x availability basic0 basic1 basic3 basic4 basic5 incomplete)
   add_executable       (${x}  EXCLUDE_FROM_ALL ${x}/${x}.c)
   target_link_libraries(${x}  simgrid)
   set_target_properties(${x}  PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${x})
@@ -33,7 +31,6 @@ set(xml_files     ${xml_files}      ${CMAKE_CURRENT_SOURCE_DIR}/platforms/four_h
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/one_cluster_splitduplex.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/one_cluster_router_id.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/one_cluster.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_4p_1switch.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/properties.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/test_of_is_router.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/three_hosts_non_symmetric_route.xml
@@ -45,12 +42,7 @@ set(xml_files     ${xml_files}      ${CMAKE_CURRENT_SOURCE_DIR}/platforms/four_h
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/bogus_two_hosts_asymetric.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/two_hosts_one_link_splitduplex.xml
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/two_hosts_one_link.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/Dijkstra.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_2p_1bb.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_2p_1fl.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_2p_1sl.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_2p_1sl_hetero.xml
-                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/platform_2p_1switch.xml          PARENT_SCOPE)
+                                    ${CMAKE_CURRENT_SOURCE_DIR}/platforms/Dijkstra.xml                     PARENT_SCOPE)
 set(txt_files     ${txt_files}      ${CMAKE_CURRENT_SOURCE_DIR}/platforms/carol.fail
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/bob.trace
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/erin.avail
@@ -58,9 +50,7 @@ set(txt_files     ${txt_files}      ${CMAKE_CURRENT_SOURCE_DIR}/platforms/carol.
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/link.fail
                                     ${CMAKE_CURRENT_SOURCE_DIR}/platforms/link.lat                         PARENT_SCOPE)
 
-foreach(x availability basic0 basic1 basic3 basic4 basic5 basic6
-          comm-mxn-all2all comm-mxn-independent comm-mxn-scatter flatifier
-          comm-p2p-latency-bound incomplete)
+foreach(x availability basic0 basic1 basic3 basic4 basic5 flatifier incomplete)
   ADD_TESH(tesh-simdag-${x} --setenv bindir=${CMAKE_BINARY_DIR}/teshsuite/simdag/${x} --setenv srcdir=${CMAKE_HOME_DIRECTORY} --cd ${CMAKE_HOME_DIRECTORY}/teshsuite/simdag/${x} ${x}.tesh)
 endforeach()
 
