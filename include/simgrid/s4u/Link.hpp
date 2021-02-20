@@ -99,7 +99,14 @@ public:
   void set_last_state(Link::State state) { last_state_ = state; }
   Link::State get_last_state() const { return last_state_; }
   const char* get_last_state_str() const;
-  Link::State last_state_;
+  Link::State last_state_ = Link::State::ON;
+
+  /** Keep track of active actions using this link */
+  std::map<double, unsigned long> active_actions;
+  unsigned long get_num_active_actions_before(double time);
+  unsigned long get_num_active_actions_at(double time);
+  void add_active_action_at(double time);
+  void remove_active_action_at(double time);
 
   /** Setup the profile with states events (ON or OFF). The profile must contain boolean values. */
   void set_state_profile(kernel::profile::Profile* profile);

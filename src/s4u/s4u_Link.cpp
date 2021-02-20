@@ -81,6 +81,37 @@ const char* Link::get_last_state_str() const {
   return to_c_str(last_state_);
 }
 
+/** active actions using this link */
+unsigned long Link::get_num_active_actions_before(double time){
+  unsigned long num = 0;
+  for (auto q = active_actions.begin(); q != active_actions.end() && q->first < time; ++q) {
+    num += q->second;
+  }
+  return num;
+}
+
+unsigned long Link::get_num_active_actions_at(double time){
+  unsigned long num = 0;
+  for (auto q = active_actions.begin(); q != active_actions.end() && q->first <= time; ++q) {
+    num += q->second;
+  }
+  return num;
+}
+
+void Link::add_active_action_at(double time){
+  if (active_actions.find(time) == active_actions.end())
+    active_actions[time] = 1;
+  else
+    active_actions[time] += 1;
+}
+
+void Link::remove_active_action_at(double time){
+  xbt_assert(active_actions.find(time) != active_actions.end(), "No active actions to remove at this timestamp.");
+  active_actions[time] -= 1;
+  if (active_actions[time] == 0)
+    active_actions.erase(time);
+}
+
 double Link::get_last_busy() {
   return this->pimpl_->get_last_busy();
 }

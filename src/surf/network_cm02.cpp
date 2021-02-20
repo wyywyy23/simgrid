@@ -254,38 +254,37 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     double this_latency = 0.0;
     if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
       continue;
-    } else if (link->get_constraint()->get_usage() > 0) { // Not idle
+    } else if (link->get_iface()->get_num_active_actions_before(action->get_start_time()) > 0) { // Not idle
       link->get_iface()->set_last_state(s4u::Link::State::ON);
-      continue;
-    } else if (link->get_last_busy() < 0 || surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_tuning) { // First transmission or long idle
+    } else if (link->get_last_busy() < 0 || action->get_start_time() - link->get_last_busy() > dlps_idle_threshold_tuning) { // First transmission or long idle
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
       link->get_iface()->set_last_state(
                       dlps_mode == "full" ? s4u::Link::State::OFF : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
-                      dlps_mode == "on_off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-    } else if (surf_get_clock() - link->get_last_busy() > dlps_idle_threshold_laser) { // Medium idle
+                      dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+    } else if (action->get_start_time() - link->get_last_busy() > dlps_idle_threshold_laser) { // Medium idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
       link->get_iface()->set_last_state(
                       dlps_mode == "full" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
-                      dlps_mode == "on_off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-    } else if (surf_get_clock() - link->get_last_busy() > 0) { // Short idle
+                      dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+    } else if (action->get_start_time() - link->get_last_busy() > 0) { // Short idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_waking : (
                       dlps_mode == "laser" ? dlps_delay_laser_waking : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
       link->get_iface()->set_last_state(
                       dlps_mode == "full" ? s4u::Link::State::READY : (
                       dlps_mode == "laser" ? s4u::Link::State::READY : (
-                      dlps_mode == "on_off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+                      dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
     } else {
       link->get_iface()->set_last_state(s4u::Link::State::ON);
-      continue;
     }
     extra_latency = std::max(extra_latency, this_latency);
+    link->get_iface()->add_active_action_at(action->get_start_time());
   }
 
   size_t constraints_per_variable = route.size();
