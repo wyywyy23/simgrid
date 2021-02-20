@@ -256,6 +256,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
       continue;
     } else if (link->get_iface()->get_num_active_actions_before(action->get_start_time()) > 0) { // Not idle
       link->get_iface()->set_last_state(s4u::Link::State::ON);
+      this_latency += std::max(0.0, link->get_iface()->get_next_on_time() - action->get_start_time());
     } else if (link->get_last_busy() < 0 || action->get_start_time() - link->get_last_busy() > dlps_idle_threshold_tuning) { // First transmission or long idle
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
@@ -285,6 +286,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     }
     extra_latency = std::max(extra_latency, this_latency);
     link->get_iface()->add_active_action_at(action->get_start_time());
+    link->get_iface()->set_next_on_time(action->get_start_time() + this_latency);
   }
 
   size_t constraints_per_variable = route.size();

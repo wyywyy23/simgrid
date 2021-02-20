@@ -100,8 +100,6 @@ void DLPS::update_on_comm_start()
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
   s4u::Link::State last_state = link_->get_last_state();
 
-  XBT_INFO("%s,communicate,%.17f,%f,%s,%ld\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now));
-
   // Update minimum/maximum observed values if needed
   min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
   max_bytes_per_second_ = std::max(max_bytes_per_second_, current_instantaneous_bytes_per_second);
@@ -115,6 +113,8 @@ void DLPS::update_on_comm_start()
 
   cumulated_bytes_ += bytes_since_last_update;
   last_updated_ = now;
+
+  XBT_INFO("%s,communicate,%.17f,%f,%s,%ld,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now), cumulated_bytes_);
 }
 
 void DLPS::update_on_comm_end()
@@ -130,8 +130,6 @@ void DLPS::update_on_comm_end()
   double now                                    = surf_get_clock();
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
   s4u::Link::State last_state = link_->get_last_state();
-
-  XBT_INFO("%s,finished,%.17f,%f,%s,%ld\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now));
 
   link_->set_last_busy(now);
 
@@ -163,6 +161,8 @@ void DLPS::update_on_comm_end()
 
   cumulated_bytes_ += bytes_since_last_update;
   last_updated_ = now;
+
+  XBT_INFO("%s,finished,%.17f,%f,%s,%ld,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now), cumulated_bytes_);
 }
 
 s4u::Link* DLPS::get_s4u_link() {

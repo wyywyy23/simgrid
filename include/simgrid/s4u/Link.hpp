@@ -100,6 +100,9 @@ public:
   Link::State get_last_state() const { return last_state_; }
   const char* get_last_state_str() const;
   Link::State last_state_ = Link::State::ON;
+  double next_on_time_ = 0.0;
+  void set_next_on_time(double time) { next_on_time_ = time; }
+  double get_next_on_time() const { return next_on_time_; }
 
   /** Keep track of active actions using this link */
   std::map<double, unsigned long> active_actions;
