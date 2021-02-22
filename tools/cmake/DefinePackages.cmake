@@ -683,7 +683,6 @@ set(headers_to_install
   include/simgrid/plugins/load.h
   include/simgrid/plugins/dlps.h
   include/simgrid/plugins/dlps.hpp
-  include/simgrid/smpi/replay.hpp
   include/simgrid/smpi/smpi_replay.hpp
   include/simgrid/instr.h
   include/simgrid/mailbox.h
