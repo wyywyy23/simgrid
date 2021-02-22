@@ -225,7 +225,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     action = new NetworkWifiAction(this, *src, *dst, size, failed, src_wifi_link, dst_wifi_link);
   action->sharing_penalty_  = latency;
   action->latency_ = latency;
-  action->rate_ = rate;
+  action->rate_ = 100000000000.0/8;
+  XBT_INFO("Requrested rate: %d", action->rate_);
 
   if (is_update_lazy()) {
     action->set_last_update();
@@ -246,6 +247,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->lat_current_ = action->latency_;
   action->latency_ *= get_latency_factor(size);
   action->rate_ = get_bandwidth_constraint(action->rate_, bandwidth_bound, size);
+  XBT_INFO("Constrained rate: %d", action->rate_);
 
   // DLPS
   double extra_latency = 0.0;
