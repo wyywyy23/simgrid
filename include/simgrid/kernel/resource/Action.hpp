@@ -229,11 +229,12 @@ private:
 
   ActionHeap::Type type_                              = ActionHeap::Type::unset;
   boost::optional<ActionHeap::handle_type> heap_hook_ = boost::none;
-  double planned_finish_date_                          = -1.0;
+  double actual_start_time_                          = -1.0;
 
 public:
   ActionHeap::Type get_type() const { return type_; }
-  double get_planned_finish_date() const { return planned_finish_date_; }
+  double get_actual_start_time() const { return actual_start_time_; }
+  void set_actual_start_time(double date) { actual_start_time_ = date; }
 
   lmm::Variable* get_variable() const { return variable_; }
   void set_variable(lmm::Variable* var) { variable_ = var; }

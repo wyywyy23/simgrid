@@ -215,14 +215,12 @@ double ActionHeap::top_date() const
 void ActionHeap::insert(Action* action, double date, ActionHeap::Type type)
 {
   action->type_      = type;
-  action->planned_finish_date_ = date;
   action->heap_hook_ = emplace(std::make_pair(date, action));
 }
 
 void ActionHeap::remove(Action* action)
 {
   action->type_ = ActionHeap::Type::unset;
-  action->planned_finish_date_ = -1.0;
   if (action->heap_hook_) {
     erase(*action->heap_hook_);
     action->heap_hook_ = boost::none;
@@ -232,7 +230,6 @@ void ActionHeap::remove(Action* action)
 void ActionHeap::update(Action* action, double date, ActionHeap::Type type)
 {
   action->type_ = type;
-  action->planned_finish_date_ = date;
   if (action->heap_hook_) {
     heap_type::update(*action->heap_hook_, std::make_pair(date, action));
   } else {

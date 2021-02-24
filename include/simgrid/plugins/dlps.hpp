@@ -21,8 +21,8 @@ public:
   void enable();
   void disable();
   void reset();
-  void update_on_comm_start();
-  void update_on_comm_end();
+  void update_on_comm_start(double);
+  void update_on_comm_end(double);
   void update_load();
 
   /// Getter methods.

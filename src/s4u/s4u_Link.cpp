@@ -27,6 +27,7 @@ xbt::signal<void(Link const&)> Link::on_bandwidth_change;
 xbt::signal<void(kernel::resource::NetworkAction&)> Link::on_communicate;
 xbt::signal<void(kernel::resource::NetworkAction&, kernel::resource::Action::State)>
     Link::on_communication_state_change;
+xbt::signal<void(Link&, Link::State, double)> Link::on_dlps_state_change;
 
 Link* Link::by_name(const std::string& name)
 {

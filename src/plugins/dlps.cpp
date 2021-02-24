@@ -86,7 +86,7 @@ void DLPS::update_load()
   last_updated_ = now;
 }
 
-void DLPS::update_on_comm_start()
+void DLPS::update_on_comm_start(double actual_start_time)
 {
   XBT_DEBUG("Updating load of link '%s' on communication start", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -109,15 +109,15 @@ void DLPS::update_on_comm_start()
   double bytes_since_last_update    = duration_since_last_update * current_instantaneous_bytes_per_second;
   XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
             duration_since_last_update);
-  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 
   cumulated_bytes_ += bytes_since_last_update;
   last_updated_ = now;
 
-  XBT_INFO("%s,communicate,%.17f,%f,%s,%ld,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now), cumulated_bytes_);
+  XBT_INFO("%s,communicate,%.17f,%f,%s,%.17f,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_next_on_time(), actual_start_time);
+  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
-void DLPS::update_on_comm_end()
+void DLPS::update_on_comm_end(double actual_start_time)
 {
   XBT_DEBUG("Updating load of link '%s' on communication end", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -138,31 +138,32 @@ void DLPS::update_on_comm_end()
   max_bytes_per_second_ = std::max(max_bytes_per_second_, current_instantaneous_bytes_per_second);
 
   // Update cumulated load
-  double duration_since_last_update = now - last_updated_;
-  if (now == last_updated_) return;
-  switch (last_state) {
-    case s4u::Link::State::OFF:
-      xbt_assert(dlps_mode == "full" || dlps_mode == "on-off", "Link state is OFF which cannot happen for current DLPS mode.");
-      duration_since_last_update -= (dlps_delay_tuning + dlps_delay_laser_stabilizing);
-      break;
-    case s4u::Link::State::STANDBY:
-      xbt_assert(dlps_mode == "full" || dlps_mode == "laser", "Link state is STANDBY which cannot happen for current DLPS mode.");
-      duration_since_last_update -= dlps_delay_laser_stabilizing;
-      break;
-    case s4u::Link::State::READY:
-      xbt_assert(dlps_mode == "full" || dlps_mode == "laser", "Link state is READY which cannot happen for current DLPS mode.");
-      duration_since_last_update -= dlps_delay_laser_waking;
-      break;
+  double duration_since_last_update = now - std::max(last_updated_, actual_start_time);
+  if (duration_since_last_update > 0) {
+    switch (last_state) {
+      case s4u::Link::State::OFF:
+        xbt_assert(dlps_mode == "full" || dlps_mode == "on-off", "Link state is OFF which cannot happen for current DLPS mode.");
+        // duration_since_last_update -= (dlps_delay_tuning + dlps_delay_laser_stabilizing);
+        break;
+      case s4u::Link::State::STANDBY:
+        xbt_assert(dlps_mode == "full" || dlps_mode == "laser", "Link state is STANDBY which cannot happen for current DLPS mode.");
+        // duration_since_last_update -= dlps_delay_laser_stabilizing;
+        break;
+      case s4u::Link::State::READY:
+        xbt_assert(dlps_mode == "full" || dlps_mode == "laser", "Link state is READY which cannot happen for current DLPS mode.");
+        // duration_since_last_update -= dlps_delay_laser_waking;
+        break;
+    }
   }
   double bytes_since_last_update    = duration_since_last_update * current_instantaneous_bytes_per_second;
   XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
             duration_since_last_update);
-  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 
   cumulated_bytes_ += bytes_since_last_update;
   last_updated_ = now;
 
-  XBT_INFO("%s,finished,%.17f,%f,%s,%ld,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_num_active_actions_at(now), cumulated_bytes_);
+  XBT_INFO("%s,finished,%.17f,%f,%s,%.17f,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_next_on_time(), actual_start_time);
+  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
 s4u::Link* DLPS::get_s4u_link() {
@@ -222,7 +223,7 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
-        dlps->update_on_comm_start();
+        dlps->update_on_comm_start(action.get_actual_start_time());
       }
     }
   }
@@ -236,7 +237,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
       if (dlps->is_enabled()) {
         if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
           link->get_iface()->remove_active_action_at(action.get_start_time());
-          dlps->update_on_comm_end();
+          dlps->update_on_comm_end(action.get_actual_start_time());
       }
     }
   }

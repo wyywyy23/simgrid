@@ -142,6 +142,9 @@ public:
   /** @brief Callback signal fired when a communication changes it state (ready/done/cancel) */
   static xbt::signal<void(kernel::resource::NetworkAction&, kernel::resource::Action::State)>
       on_communication_state_change;
+
+  /** Unified signal for DLPS <link, last_state, total_rate>*/
+  static xbt::signal<void(Link&, Link::State, double)> on_dlps_state_change;
 };
 } // namespace s4u
 } // namespace simgrid
