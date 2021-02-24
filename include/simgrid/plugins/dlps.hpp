@@ -37,15 +37,16 @@ public:
 
 private:
   s4u::Link* link_{};      /*< The link onto which this data is enabled*/
-  bool is_enabled_{false}; /*<Whether the link is enabled or not*/
-
-  double original_latency_{};  // Back up of original latency;
+  bool is_enabled_{false}; /*< Whether the link is enabled or not*/
 
   double cumulated_bytes_{0.0};      /*< Cumulated load since last reset*/
+  double cumulated_energy_{0.0};     /*< Cumulated energy since last reset*/
   double min_bytes_per_second_{0.0}; /*< Minimum instantaneous load observed since last reset*/
   double max_bytes_per_second_{0.0}; /*< Maximum instantaneous load observed since last reset*/
   double last_reset_{-1.0};          /*< Timestamp of the last reset (init timestamp by default)*/
   double last_updated_{-1.0};        /*< Timestamp of the last update event*/
+
+  double data_rate_to_power(double); /*< Compute power from data rate*/
 };
 
 }

@@ -113,14 +113,6 @@ void Link::remove_active_action_at(double time){
     active_actions.erase(time);
 }
 
-double Link::get_last_busy() {
-  return this->pimpl_->get_last_busy();
-}
-
-void Link::set_last_busy(double value) {
-  kernel::actor::simcall([this, value] { pimpl_->set_last_busy(value); });
-}
-
 Link::SharingPolicy Link::get_sharing_policy() const
 {
   return this->pimpl_->get_sharing_policy();

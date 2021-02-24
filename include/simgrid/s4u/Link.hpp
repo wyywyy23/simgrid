@@ -57,9 +57,6 @@ public:
   /** Set the bandwidth of the current Link (in bytes per second) */
   void set_bandwidth(double value);
 
-  double get_last_busy();
-  void set_last_busy(double value);
-
   /** Get the latency of the current Link (in seconds) */
   double get_latency() const;
   /** Set the latency of the current Link (in seconds) */
@@ -100,9 +97,27 @@ public:
   Link::State get_last_state() const { return last_state_; }
   const char* get_last_state_str() const;
   Link::State last_state_ = Link::State::ON;
-  double next_on_time_ = 0.0;
-  void set_next_on_time(double time) { next_on_time_ = time; }
-  double get_next_on_time() const { return next_on_time_; }
+
+  /** wyy: timestamps related to the states */
+  double next_on_ = 0.0;
+  void set_next_on(double time) { next_on_ = time; }
+  double get_next_on() const { return next_on_; }
+
+  double next_ready_ = std::numeric_limits<double>::max();
+  void set_next_ready(double time) { next_ready_ = time; }
+  double get_next_ready() const { return next_ready_; }
+
+  double next_standby_ = std::numeric_limits<double>::max();
+  void set_next_standby(double time) { next_standby_ = time; }
+  double get_next_standby() const { return next_standby_; }
+
+  double next_off_ = std::numeric_limits<double>::max();
+  void set_next_off(double time) { next_off_ = time; }
+  double get_next_off() const { return next_off_; }
+
+  double last_busy_ = -1.0;
+  void set_last_busy(double time) { last_busy_ = time; }
+  double get_last_busy() const { return last_busy_; }
 
   /** Keep track of active actions using this link */
   std::map<double, unsigned long> active_actions;
