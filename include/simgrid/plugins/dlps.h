@@ -17,6 +17,7 @@ XBT_PUBLIC void sg_dlps_enable(const_sg_link_t link);
 XBT_PUBLIC void sg_dlps_disable(const_sg_link_t link);
 XBT_PUBLIC void sg_dlps_reset(const_sg_link_t link);
 XBT_PUBLIC double sg_dlps_get_cum_load(const_sg_link_t link);
+XBT_PUBLIC double sg_dlps_get_cum_energy(const_sg_link_t link);
 XBT_PUBLIC double sg_dlps_get_avg_load(const_sg_link_t link);
 XBT_PUBLIC double sg_dlps_get_min_instantaneous_load(const_sg_link_t link);
 XBT_PUBLIC double sg_dlps_get_max_instantaneous_load(const_sg_link_t link);

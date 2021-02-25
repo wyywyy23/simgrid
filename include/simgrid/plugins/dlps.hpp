@@ -46,7 +46,7 @@ private:
   double last_reset_{-1.0};          /*< Timestamp of the last reset (init timestamp by default)*/
   double last_updated_{-1.0};        /*< Timestamp of the last update event*/
 
-  double data_rate_to_power(double); /*< Compute power from data rate*/
+  double data_rate_to_power(double rate, bool tuning_on = true); /*< Compute power from data rate*/
 };
 
 }

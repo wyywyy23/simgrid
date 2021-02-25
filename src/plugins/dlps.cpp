@@ -60,9 +60,13 @@ void DLPS::reset()
   last_updated_ = last_reset_;
 }
 
-double DLPS::data_rate_to_power(double data_rate)
+double DLPS::data_rate_to_power(double data_rate, bool tuning_on)
 {
-  return 1.0;
+  xbt_assert((data_rate > 0 && tuning_on) || data_rate == 0, "Cannot have positive data rate while tuning is off.");
+  double tuning_power = 0.96; // W
+  double data_rate_dependent_power = data_rate / link_->get_bandwidth() * (0.63-0.03) + 0.03;
+
+  return tuning_on ? (tuning_power + data_rate_dependent_power) : data_rate_dependent_power;
 }
 
 void DLPS::update_on_comm_start(double actual_start_time)
@@ -91,15 +95,41 @@ void DLPS::update_on_comm_start(double actual_start_time)
   cumulated_bytes_ += bytes_since_last_update;
 
   // Update cumulated energy
-  duration_since_last_update         = now - last_updated_;
-  double current_instantaneous_power = data_rate_to_power(current_instantaneous_bytes_per_second);
-  double energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
+  double current_instantaneous_power = 0.0;
+  double energy_since_last_update    = 0.0;
+  if (last_updated_ < 0 && dlps_mode == "none") {
+    current_instantaneous_power = data_rate_to_power(link_->get_bandwidth());
+    energy_since_last_update    = now * current_instantaneous_power;
+  } else if (link_->get_num_active_actions_at(now) == 1 && now > last_updated_) {
+    if (dlps_mode == "full") {
+      double ready_time = std::min(duration_since_last_update, dlps_idle_threshold_laser);
+      double standby_time = std::max(std::min(duration_since_last_update, dlps_idle_threshold_tuning) - dlps_idle_threshold_laser, 0.0);
+      energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
+                               + standby_time * data_rate_to_power(0.0, false);
+    } else if (dlps_mode == "laser") {
+      double ready_time = std::min(duration_since_last_update, dlps_idle_threshold_laser);
+      double standby_time = std::max(duration_since_last_update - dlps_idle_threshold_laser, 0.0);
+      energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
+                               + standby_time * data_rate_to_power(0.0, false);
+    } else if (dlps_mode == "on-off") {
+      
+    } else {
+      current_instantaneous_power = data_rate_to_power(link_->get_bandwidth());
+      energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
+    }
+  } else {
+    current_instantaneous_power = data_rate_to_power(
+        (dlps_mode == "full" || dlps_mode == "laser") ?
+        current_instantaneous_bytes_per_second : link_->get_bandwidth());
+    energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
+  }
+
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
             duration_since_last_update);
   cumulated_energy_ += energy_since_last_update;
 
   last_updated_ = now;
-  XBT_INFO("%s,communicate,%.17f,%f,%s,%.17f,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_next_on(), actual_start_time);
+  XBT_INFO("%s,communicate,%.17f,%f,%ld,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_num_active_actions_at(now), energy_since_last_update);
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
@@ -142,14 +172,16 @@ void DLPS::update_on_comm_end(double actual_start_time)
 
   // Update cumulated energy
   duration_since_last_update         = now - last_updated_;
-  double current_instantaneous_power = data_rate_to_power(current_instantaneous_bytes_per_second);
+  double current_instantaneous_power = data_rate_to_power(
+      (dlps_mode == "full" || dlps_mode == "laser") ?
+      current_instantaneous_bytes_per_second : link_->get_bandwidth());
   double energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
             duration_since_last_update);
   cumulated_energy_ += energy_since_last_update;
 
   last_updated_ = now;
-  XBT_INFO("%s,finished,%.17f,%f,%s,%.17f,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_last_state_str(), link_->get_next_on(), actual_start_time);
+  XBT_INFO("%s,finished,%.17f,%f,%ld,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_num_active_actions_at(now), energy_since_last_update);
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
@@ -170,6 +202,11 @@ double DLPS::get_last_updated()
 double DLPS::get_cumulated_bytes()
 {
   return cumulated_bytes_;
+}
+
+double DLPS::get_cumulated_energy()
+{
+  return cumulated_energy_;
 }
 
 double DLPS::get_min_bytes_per_second()
@@ -346,6 +383,13 @@ double sg_dlps_get_cum_load(const_sg_link_t link)
   xbt_assert(DLPS::EXTENSION_ID.valid(),
              "Please call sg_dlps_plugin_init before sg_dlps_get_cum_load. Aborting.");
   return link->extension<DLPS>()->get_cumulated_bytes();
+}
+
+double sg_dlps_get_cum_energy(const_sg_link_t link)
+{
+  xbt_assert(DLPS::EXTENSION_ID.valid(),
+             "Please call sg_dlps_plugin_init before sg_dlps_get_cum_load. Aborting.");
+  return link->extension<DLPS>()->get_cumulated_energy();
 }
 
 /**
