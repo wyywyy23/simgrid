@@ -110,7 +110,6 @@ public:
  */
 class LinkImpl : public Resource, public xbt::PropertyHolder {
   s4u::Link piface_;
-  double last_busy_ = -1.0;
 
 protected:
   LinkImpl(NetworkModel* model, const std::string& name, lmm::Constraint* constraint);
@@ -124,9 +123,6 @@ public:
   /** @brief Public interface */
   const s4u::Link* get_iface() const { return &piface_; }
   s4u::Link* get_iface() { return &piface_; }
-
-  double get_last_busy() { return last_busy_; }
-  void set_last_busy(double time) { last_busy_ = time; }
 
   /** @brief Get the bandwidth in bytes per second of current Link */
   double get_bandwidth() const;

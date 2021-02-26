@@ -178,7 +178,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
 
-  XBT_IN("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
+  XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
 
   src->route_to(dst, route, &latency);
   xbt_assert(not route.empty() || latency > 0,
@@ -226,7 +226,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->sharing_penalty_  = latency;
   action->latency_ = latency;
   action->rate_ = rate;
-  XBT_INFO("Requrested rate: %d", action->rate_);
+  XBT_INFO("Requested rate: %f", action->rate_);
 
   if (is_update_lazy()) {
     action->set_last_update();
@@ -247,7 +247,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->lat_current_ = action->latency_;
   action->latency_ *= get_latency_factor(size);
   action->rate_ = get_bandwidth_constraint(action->rate_, bandwidth_bound, size);
-  XBT_INFO("Constrained rate: %d", action->rate_);
+  XBT_INFO("Constrained rate: %f", action->rate_);
 
   // DLPS
   double extra_latency = 0.0;
