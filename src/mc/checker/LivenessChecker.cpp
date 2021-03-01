@@ -129,7 +129,7 @@ void LivenessChecker::replay()
     std::shared_ptr<State> state = pair->graph_state;
 
     if (pair->exploration_started) {
-      int req_num             = state->transition_.argument_;
+      int req_num                    = state->transition_.times_considered_;
       const s_smx_simcall* saved_req = &state->executed_req_;
 
       smx_simcall_t req = nullptr;
@@ -143,7 +143,7 @@ void LivenessChecker::replay()
       XBT_DEBUG("Replay (depth = %d) : %s (%p)", depth,
                 api::get().request_to_string(req, req_num, simgrid::mc::RequestType::simix).c_str(), state.get());
 
-      api::get().execute(state->transition_);
+      api::get().execute(state->transition_, req);
     }
 
     /* Update statistics */
@@ -239,7 +239,7 @@ std::vector<std::string> LivenessChecker::get_textual_trace() // override
 {
   std::vector<std::string> trace;
   for (std::shared_ptr<Pair> const& pair : exploration_stack_) {
-    int req_num       = pair->graph_state->transition_.argument_;
+    int req_num       = pair->graph_state->transition_.times_considered_;
     smx_simcall_t req = &pair->graph_state->executed_req_;
     if (req->call_ != simix::Simcall::NONE)
       trace.push_back(api::get().request_to_string(req, req_num, RequestType::executed));
@@ -264,8 +264,8 @@ std::shared_ptr<Pair> LivenessChecker::create_pair(const Pair* current_pair, xbt
   auto actors = api::get().get_actors();
   for (auto& actor : actors)
     if (api::get().actor_is_enabled(actor.copy.get_buffer()->get_pid()))
-      next_pair->graph_state->add_interleaving_set(actor.copy.get_buffer());
-  next_pair->requests = next_pair->graph_state->interleave_size();
+      next_pair->graph_state->mark_todo(actor.copy.get_buffer());
+  next_pair->requests = next_pair->graph_state->count_todo();
   /* FIXME : get search_cycle value for each accepting state */
   if (next_pair->automaton_state->type == 1 || (current_pair && current_pair->search_cycle))
     next_pair->search_cycle = true;
@@ -326,8 +326,8 @@ void LivenessChecker::run()
 
     XBT_DEBUG(
         "********************* ( Depth = %d, search_cycle = %d, interleave size = %zu, pair_num = %d, requests = %d)",
-        current_pair->depth, current_pair->search_cycle, current_pair->graph_state->interleave_size(),
-        current_pair->num, current_pair->requests);
+        current_pair->depth, current_pair->search_cycle, current_pair->graph_state->count_todo(), current_pair->num,
+        current_pair->requests);
 
     if (current_pair->requests == 0) {
       this->backtrack();
@@ -360,7 +360,7 @@ void LivenessChecker::run()
     }
 
     smx_simcall_t req = api::get().mc_state_choose_request(current_pair->graph_state.get());
-    int req_num       = current_pair->graph_state->transition_.argument_;
+    int req_num       = current_pair->graph_state->transition_.times_considered_;
 
     if (dot_output != nullptr) {
       if (this->previous_pair_ != 0 && this->previous_pair_ != current_pair->num) {

@@ -62,11 +62,8 @@ RecordTrace SafetyChecker::get_record_trace() // override
 std::vector<std::string> SafetyChecker::get_textual_trace() // override
 {
   std::vector<std::string> trace;
-  for (auto const& state : stack_) {
-    int value         = state->transition_.argument_;
-    smx_simcall_t req = &state->executed_req_;
-    trace.push_back(api::get().request_to_string(req, value, RequestType::executed));
-  }
+  for (auto const& state : stack_)
+    trace.push_back(state->transition_.textual);
   return trace;
 }
 
@@ -89,7 +86,7 @@ void SafetyChecker::run()
 
     XBT_DEBUG("**************************************************");
     XBT_VERB("Exploration depth=%zu (state=%p, num %d)(%zu interleave)", stack_.size(), state, state->num_,
-             state->interleave_size());
+             state->count_todo());
 
     api::get().mc_inc_visited_states();
 
@@ -124,16 +121,17 @@ void SafetyChecker::run()
 
     // If there are processes to interleave and the maximum depth has not been
     // reached then perform one step of the exploration algorithm.
-    XBT_DEBUG("Execute: %s", api::get().request_to_string(req, state->transition_.argument_, RequestType::simix).c_str());
+    XBT_DEBUG("Execute: %s",
+              api::get().request_to_string(req, state->transition_.times_considered_, RequestType::simix).c_str());
 
     std::string req_str;
     if (dot_output != nullptr)
-      req_str = api::get().request_get_dot_output(req, state->transition_.argument_);
+      req_str = api::get().request_get_dot_output(req, state->transition_.times_considered_);
 
     api::get().mc_inc_executed_trans();
 
     /* Actually answer the request: let execute the selected request (MCed does one step) */
-    api::get().execute(state->transition_);
+    api::get().execute(state->transition_, &state->executed_req_);
 
     /* Create the new expanded state (copy the state of MCed into our MCer data) */
     ++expanded_states_count_;
@@ -153,7 +151,7 @@ void SafetyChecker::run()
       for (auto& remoteActor : actors) {
         auto actor = remoteActor.copy.get_buffer();
         if (api::get().actor_is_enabled(actor->get_pid())) {
-          next_state->add_interleaving_set(actor);
+          next_state->mark_todo(actor);
           if (reductionMode_ == ReductionMode::dpor)
             break; // With DPOR, we take the first enabled transition
         }
@@ -203,18 +201,18 @@ void SafetyChecker::backtrack()
         if (api::get().simcall_check_dependency(req, &prev_state->internal_req_)) {
           if (XBT_LOG_ISENABLED(mc_safety, xbt_log_priority_debug)) {
             XBT_DEBUG("Dependent Transitions:");
-            int value              = prev_state->transition_.argument_;
+            int value              = prev_state->transition_.times_considered_;
             smx_simcall_t prev_req = &prev_state->executed_req_;
             XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value, RequestType::internal).c_str(),
                       prev_state->num_);
-            value    = state->transition_.argument_;
+            value    = state->transition_.times_considered_;
             prev_req = &state->executed_req_;
             XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value, RequestType::executed).c_str(),
                       state->num_);
           }
 
           if (not prev_state->actor_states_[issuer->get_pid()].is_done())
-            prev_state->add_interleaving_set(issuer);
+            prev_state->mark_todo(issuer);
           else
             XBT_DEBUG("Process %p is in done set", req->issuer_);
           break;
@@ -231,7 +229,7 @@ void SafetyChecker::backtrack()
       }
     }
 
-    if (state->interleave_size() && stack_.size() < (std::size_t)_sg_mc_max_depth) {
+    if (state->count_todo() && stack_.size() < (std::size_t)_sg_mc_max_depth) {
       /* We found a back-tracking point, let's loop */
       XBT_DEBUG("Back-tracking to state %d at depth %zu", state->num_, stack_.size() + 1);
       stack_.push_back(std::move(state));
@@ -260,7 +258,7 @@ void SafetyChecker::restore_state()
   for (std::unique_ptr<State> const& state : stack_) {
     if (state == stack_.back())
       break;
-    api::get().execute(state->transition_);
+    api::get().execute(state->transition_, &state->executed_req_);
     /* Update statistics */
     api::get().mc_inc_visited_states();
     api::get().mc_inc_executed_trans();
@@ -296,7 +294,7 @@ SafetyChecker::SafetyChecker() : Checker()
   auto actors = api::get().get_actors();
   for (auto& actor : actors)
     if (api::get().actor_is_enabled(actor.copy.get_buffer()->get_pid())) {
-      initial_state->add_interleaving_set(actor.copy.get_buffer());
+      initial_state->mark_todo(actor.copy.get_buffer());
       if (reductionMode_ != ReductionMode::none)
         break;
     }

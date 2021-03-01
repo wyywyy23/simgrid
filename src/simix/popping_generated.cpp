@@ -21,6 +21,7 @@
 #include "src/mc/mc_forward.hpp"
 #endif
 #include "src/kernel/activity/ConditionVariableImpl.hpp"
+#include "src/mc/checker/SimcallInspector.hpp"
 
 XBT_LOG_EXTERNAL_DEFAULT_CATEGORY(simix_popping);
 
@@ -44,7 +45,6 @@ constexpr std::array<const char*, simgrid::simix::NUM_SIMCALLS> simcall_names{{
     "Simcall::COND_WAIT_TIMEOUT",
     "Simcall::SEM_ACQUIRE",
     "Simcall::SEM_ACQUIRE_TIMEOUT",
-    "Simcall::MC_RANDOM",
     "Simcall::RUN_KERNEL",
     "Simcall::RUN_BLOCKING",
 }};
@@ -54,9 +54,12 @@ constexpr std::array<const char*, simgrid::simix::NUM_SIMCALLS> simcall_names{{
  *
  * This function is generated from src/simix/simcalls.in
  */
-void simgrid::kernel::actor::ActorImpl::simcall_handle(int value) {
+void simgrid::kernel::actor::ActorImpl::simcall_handle(int times_considered_)
+{
   XBT_DEBUG("Handling simcall %p: %s", &simcall_, SIMIX_simcall_name(simcall_.call_));
-  SIMCALL_SET_MC_VALUE(simcall_, value);
+  SIMCALL_SET_MC_VALUE(simcall_, times_considered_);
+  if (simcall_.inspector_ != nullptr)
+    simcall_.inspector_->prepare(times_considered_);
   if (context_->wannadie())
     return;
   switch (simcall_.call_) {
@@ -126,11 +129,6 @@ void simgrid::kernel::actor::ActorImpl::simcall_handle(int value) {
 
     case Simcall::SEM_ACQUIRE_TIMEOUT:
       simcall_HANDLER_sem_acquire_timeout(&simcall_, simgrid::simix::unmarshal<smx_sem_t>(simcall_.args_[0]), simgrid::simix::unmarshal<double>(simcall_.args_[1]));
-      break;
-
-    case Simcall::MC_RANDOM:
-      simgrid::simix::marshal<int>(simcall_.result_, simcall_HANDLER_mc_random(&simcall_, simgrid::simix::unmarshal<int>(simcall_.args_[0]), simgrid::simix::unmarshal<int>(simcall_.args_[1])));
-      simcall_answer();
       break;
 
     case Simcall::RUN_KERNEL:

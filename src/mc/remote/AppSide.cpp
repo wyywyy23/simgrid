@@ -6,6 +6,7 @@
 #include "src/mc/remote/AppSide.hpp"
 #include "src/internal_config.h"
 #include "src/kernel/actor/ActorImpl.hpp"
+#include "src/mc/checker/SimcallInspector.hpp"
 #include <simgrid/modelchecker.h>
 
 #include <cerrno>
@@ -90,9 +91,9 @@ void AppSide::handle_continue(const s_mc_message_t*) const
 }
 void AppSide::handle_simcall(const s_mc_message_simcall_handle_t* message) const
 {
-  kernel::actor::ActorImpl* process = kernel::actor::ActorImpl::by_PID(message->pid);
-  xbt_assert(process != nullptr, "Invalid pid %lu", message->pid);
-  process->simcall_handle(message->value);
+  kernel::actor::ActorImpl* process = kernel::actor::ActorImpl::by_PID(message->pid_);
+  xbt_assert(process != nullptr, "Invalid pid %lu", message->pid_);
+  process->simcall_handle(message->times_considered_);
   if (channel_.send(MessageType::WAITING))
     xbt_die("Could not send MESSAGE_WAITING to model-checker");
 }
@@ -134,6 +135,50 @@ void AppSide::handle_messages() const
         assert_msg_size("SIMCALL_HANDLE", s_mc_message_simcall_handle_t);
         handle_simcall((s_mc_message_simcall_handle_t*)message_buffer.data());
         break;
+
+      case MessageType::SIMCALL_IS_VISIBLE: {
+        assert_msg_size("SIMCALL_IS_VISIBLE", s_mc_message_simcall_is_visible_t);
+        auto msg_simcall                = (s_mc_message_simcall_is_visible_t*)message_buffer.data();
+        kernel::actor::ActorImpl* actor = kernel::actor::ActorImpl::by_PID(msg_simcall->aid);
+        xbt_assert(actor != nullptr, "Invalid pid %d", msg_simcall->aid);
+        xbt_assert(actor->simcall_.inspector_, "The transition of %s has no inspector", actor->get_cname());
+        bool value = actor->simcall_.inspector_->is_visible();
+
+        // Send result:
+        s_mc_message_simcall_is_visible_answer_t answer{MessageType::SIMCALL_IS_VISIBLE_ANSWER, value};
+        xbt_assert(channel_.send(answer) == 0, "Could not send response");
+        break;
+      }
+
+      case MessageType::SIMCALL_TO_STRING: {
+        assert_msg_size("SIMCALL_TO_STRING", s_mc_message_simcall_to_string_t);
+        auto msg_simcall                = (s_mc_message_simcall_to_string_t*)message_buffer.data();
+        kernel::actor::ActorImpl* actor = kernel::actor::ActorImpl::by_PID(msg_simcall->aid);
+        xbt_assert(actor != nullptr, "Invalid pid %d", msg_simcall->aid);
+        xbt_assert(actor->simcall_.inspector_, "The transition of %s has no inspector", actor->get_cname());
+        std::string value = actor->simcall_.inspector_->to_string(msg_simcall->time_considered);
+
+        // Send result:
+        s_mc_message_simcall_to_string_answer_t answer{MessageType::SIMCALL_TO_STRING_ANSWER, {0}};
+        strcat(answer.value, value.c_str());
+        xbt_assert(channel_.send(answer) == 0, "Could not send response");
+        break;
+      }
+
+      case MessageType::SIMCALL_DOT_LABEL: {
+        assert_msg_size("SIMCALL_DOT_LABEL", s_mc_message_simcall_to_string_t);
+        auto msg_simcall                = (s_mc_message_simcall_to_string_t*)message_buffer.data();
+        kernel::actor::ActorImpl* actor = kernel::actor::ActorImpl::by_PID(msg_simcall->aid);
+        xbt_assert(actor != nullptr, "Invalid pid %d", msg_simcall->aid);
+        xbt_assert(actor->simcall_.inspector_, "The transition of %s has no inspector", actor->get_cname());
+        std::string value = actor->simcall_.inspector_->dot_label();
+
+        // Send result:
+        s_mc_message_simcall_to_string_answer_t answer{MessageType::SIMCALL_TO_STRING_ANSWER, {0}};
+        strcat(answer.value, value.c_str());
+        xbt_assert(channel_.send(answer) == 0, "Could not send response");
+        break;
+      }
 
       case MessageType::ACTOR_ENABLED:
         assert_msg_size("ACTOR_ENABLED", s_mc_message_actor_enabled_t);

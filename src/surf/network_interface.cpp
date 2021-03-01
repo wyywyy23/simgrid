@@ -74,9 +74,9 @@ double NetworkModel::next_occurring_event_full(double now)
  ************/
 
 LinkImpl::LinkImpl(NetworkModel* model, const std::string& name, lmm::Constraint* constraint)
-    : piface_(this)
+    : Resource(name), piface_(this)
 {
-  this->set_name(name)->set_model(model)->set_constraint(constraint);
+  this->set_model(model)->set_constraint(constraint);
   if (name != "__loopback__")
     xbt_assert(not s4u::Link::by_name_or_null(name), "Link '%s' declared several times in the platform.", name.c_str());
 
@@ -117,6 +117,17 @@ s4u::Link::SharingPolicy LinkImpl::get_sharing_policy() const
   return get_constraint()->get_sharing_policy();
 }
 
+void LinkImpl::latency_check(double latency)
+{
+  static double last_warned_latency = sg_surf_precision;
+  if (latency != 0.0 && latency < last_warned_latency) {
+    XBT_WARN("Latency for link %s is smaller than surf/precision (%g < %g)."
+        " For more accuracy, consider setting \"--cfg=surf/precision:%g\".",
+        get_cname(), latency, sg_surf_precision, latency);
+    last_warned_latency = latency;
+  }
+}
+
 void LinkImpl::turn_on()
 {
   if (not is_on()) {
@@ -143,7 +154,10 @@ void LinkImpl::turn_off()
     }
   }
 }
-
+void LinkImpl::seal()
+{
+  simgrid::s4u::Link::on_creation(*get_iface());
+}
 void LinkImpl::on_bandwidth_change() const
 {
   s4u::Link::on_bandwidth_change(this->piface_);
