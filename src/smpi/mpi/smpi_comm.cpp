@@ -321,7 +321,6 @@ void Comm::unref(Comm* comm){
     return;
   }
   comm->refcount_--;
-  Group::unref(comm->group_);
 
   if(comm->refcount_==0){
     if(simgrid::smpi::F2C::lookup() != nullptr)
@@ -330,34 +329,40 @@ void Comm::unref(Comm* comm){
     comm->cleanup_attr<Comm>();
     if (comm->info_ != MPI_INFO_NULL)
       simgrid::smpi::Info::unref(comm->info_);
-    if (comm->errhandler_ != MPI_ERRHANDLER_NULL)
+    if(comm->errhandlers_!=nullptr){
+      for (int i=0; i<comm->size(); i++)
+	if (comm->errhandlers_[i]!=MPI_ERRHANDLER_NULL)
+          simgrid::smpi::Errhandler::unref(comm->errhandlers_[i]);
+      delete[] comm->errhandlers_;
+    } else if (comm->errhandler_ != MPI_ERRHANDLER_NULL)
       simgrid::smpi::Errhandler::unref(comm->errhandler_);
-    delete comm;
   }
+  Group::unref(comm->group_);
+  if(comm->refcount_==0)
+    delete comm;
 }
 
 MPI_Comm Comm::find_intra_comm(int * leader){
   //get the indices of all processes sharing the same simix host
-  auto& actor_list        = sg_host_self()->pimpl_->actor_list_;
   int intra_comm_size     = 0;
   int min_index           = INT_MAX; // the minimum index will be the leader
-  for (auto& actor : actor_list) {
+  sg_host_self()->pimpl_->foreach_actor([this, &intra_comm_size, &min_index](auto& actor) {
     int index = actor.get_pid();
     if (this->group()->rank(actor.get_ciface()) != MPI_UNDEFINED) { // Is this process in the current group?
       intra_comm_size++;
       if (index < min_index)
         min_index = index;
     }
-  }
+  });
   XBT_DEBUG("number of processes deployed on my node : %d", intra_comm_size);
   auto* group_intra = new Group(intra_comm_size);
   int i = 0;
-  for (auto& actor : actor_list) {
+  sg_host_self()->pimpl_->foreach_actor([this, group_intra, &i](auto& actor) {
     if (this->group()->rank(actor.get_ciface()) != MPI_UNDEFINED) {
       group_intra->set_mapping(actor.get_ciface(), i);
       i++;
     }
-  }
+  });
   *leader=min_index;
   return new Comm(group_intra, nullptr, true);
 }
@@ -553,18 +558,36 @@ void Comm::set_info(MPI_Info info)
 
 MPI_Errhandler Comm::errhandler()
 {
-  if (errhandler_ != MPI_ERRHANDLER_NULL)
-    errhandler_->ref();
-  return errhandler_;
+  if (this != MPI_COMM_WORLD){
+    if (errhandler_ != MPI_ERRHANDLER_NULL)
+      errhandler_->ref();
+    return errhandler_;
+  } else {
+    if(errhandlers_==nullptr)
+      return MPI_ERRORS_ARE_FATAL;
+    else {
+      if(errhandlers_[this->rank()] != MPI_ERRHANDLER_NULL)
+        errhandlers_[this->rank()]->ref();
+      return errhandlers_[this->rank()];
+    }
+  }
 }
 
 void Comm::set_errhandler(MPI_Errhandler errhandler)
 {
-  if (errhandler_ != MPI_ERRHANDLER_NULL)
-    simgrid::smpi::Errhandler::unref(errhandler_);
-  errhandler_ = errhandler;
-  if (errhandler_ != MPI_ERRHANDLER_NULL)
-    errhandler_->ref();
+  if(this != MPI_COMM_WORLD){
+    if (errhandler_ != MPI_ERRHANDLER_NULL)
+      simgrid::smpi::Errhandler::unref(errhandler_);
+    errhandler_ = errhandler;
+  }else{
+    if(errhandlers_==nullptr)
+      errhandlers_= new MPI_Errhandler[this->size()]{MPI_ERRHANDLER_NULL};
+    if(errhandlers_[this->rank()] != MPI_ERRHANDLER_NULL)
+      simgrid::smpi::Errhandler::unref(errhandlers_[this->rank()]);
+    errhandlers_[this->rank()]=errhandler;
+  }
+  if (errhandler != MPI_ERRHANDLER_NULL && this != MPI_COMM_SELF)
+    errhandler->ref();
 }
 
 MPI_Comm Comm::split_type(int type, int /*key*/, const Info*)

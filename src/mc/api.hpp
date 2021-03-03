@@ -49,8 +49,9 @@ private:
   simgrid::kernel::activity::CommImpl* get_comm(smx_simcall_t const r) const;
   bool request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const;
   simgrid::mc::ActorInformation* actor_info_cast(smx_actor_t actor) const;
-  const char* actor_get_host_name(smx_actor_t actor) const;
-  const char* actor_get_name(smx_actor_t actor) const;
+  std::string get_actor_name(smx_actor_t actor) const;
+  std::string get_actor_string(smx_actor_t actor) const;
+  std::string get_actor_dot_label(smx_actor_t actor) const;
 
 public:
   // No copy:
@@ -80,7 +81,7 @@ public:
   unsigned long get_pattern_comm_src_proc(RemotePtr<kernel::activity::CommImpl> const& addr) const;
   unsigned long get_pattern_comm_dst_proc(RemotePtr<kernel::activity::CommImpl> const& addr) const;
   std::vector<char> get_pattern_comm_data(RemotePtr<kernel::activity::CommImpl> const& addr) const;
-  const char* get_actor_host_name(smx_actor_t actor) const;
+  xbt::string const& get_actor_host_name(smx_actor_t actor) const;
 #if HAVE_SMPI
   bool check_send_request_detached(smx_simcall_t const& simcall) const;
 #endif
@@ -103,17 +104,15 @@ public:
   void handle_simcall(Transition const& transition) const;
   void mc_wait_for_requests() const;
   XBT_ATTRIB_NORETURN void mc_exit(int status) const;
-  std::string const& mc_get_host_name(std::string const& hostname) const;
   void dump_record_path() const;
   smx_simcall_t mc_state_choose_request(simgrid::mc::State* state) const;
 
   // UDPOR APIs
-  std::list<transition_detail_t> get_enabled_transitions(simgrid::mc::State* state);
+  std::list<transition_detail_t> get_enabled_transitions(simgrid::mc::State* state) const;
 
   // SIMCALL APIs
   std::string request_to_string(smx_simcall_t req, int value, RequestType request_type) const;
   std::string request_get_dot_output(smx_simcall_t req, int value) const;
-  const char* simcall_get_name(simgrid::simix::Simcall kind) const;
   smx_actor_t simcall_get_issuer(s_smx_simcall const* req) const;
   long simcall_get_actor_id(s_smx_simcall const* req) const;
   RemotePtr<kernel::activity::MailboxImpl> get_mbox_remote_addr(smx_simcall_t const req) const;

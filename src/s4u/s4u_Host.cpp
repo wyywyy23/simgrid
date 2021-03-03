@@ -251,6 +251,12 @@ int Host::get_core_count() const
   return this->pimpl_cpu->get_core_count();
 }
 
+Host* Host::set_core_count(int core_count)
+{
+  this->pimpl_cpu->set_core_count(core_count);
+  return this;
+}
+
 /** @brief Set the pstate at which the host should run */
 void Host::set_pstate(int pstate_index)
 {
@@ -318,7 +324,7 @@ sg_host_t* sg_host_list()
   std::vector<simgrid::s4u::Host*> hosts = e->get_all_hosts();
 
   sg_host_t* res = xbt_new(sg_host_t, hosts.size());
-  memcpy(res, hosts.data(), sizeof(sg_host_t) * hosts.size());
+  std::copy(begin(hosts), end(hosts), res);
 
   return res;
 }
@@ -395,9 +401,8 @@ void sg_host_get_disks(const_sg_host_t host, unsigned int* disk_count, sg_disk_t
 {
   std::vector<sg_disk_t> list = host->get_disks();
   *disk_count                 = list.size();
-  *disks                      = static_cast<sg_disk_t*>(xbt_malloc(sizeof(sg_disk_t) * (*disk_count)));
-  for (size_t i = 0; i < *disk_count; i++)
-    (*disks)[i] = list[i];
+  *disks                      = xbt_new(sg_disk_t, list.size());
+  std::copy(begin(list), end(list), *disks);
 }
 
 // =========== user-level functions ===============

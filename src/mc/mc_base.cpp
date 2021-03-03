@@ -3,7 +3,7 @@
 /* This program is free software; you can redistribute it and/or modify it
  * under the terms of the license (GNU LGPL) which comes with this package. */
 
-#include "src/mc/mc_base.h"
+#include "src/mc/mc_base.hpp"
 #include "mc/mc.h"
 #include "src/kernel/activity/CommImpl.hpp"
 #include "src/kernel/activity/MutexImpl.hpp"
@@ -134,18 +134,18 @@ bool actor_is_enabled(smx_actor_t actor)
     }
 
     case Simcall::SEM_ACQUIRE: {
-      static int warned = 0;
+      static bool warned = false;
       if (not warned)
         XBT_INFO("Using semaphore in model-checked code is still experimental. Use at your own risk");
-      warned = 1;
+      warned = true;
       return true;
     }
 
     case Simcall::COND_WAIT: {
-      static int warned = 0;
+      static bool warned = false;
       if (not warned)
         XBT_INFO("Using condition variables in model-checked code is still experimental. Use at your own risk");
-      warned = 1;
+      warned = true;
       return true;
     }
 

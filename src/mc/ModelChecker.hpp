@@ -9,10 +9,10 @@
 #include "src/mc/remote/CheckerSide.hpp"
 #include "src/mc/sosp/PageStore.hpp"
 #include "xbt/base.h"
+#include "xbt/string.hpp"
 
 #include <memory>
 #include <set>
-#include <string>
 
 namespace simgrid {
 namespace mc {
@@ -22,11 +22,14 @@ namespace mc {
 class ModelChecker {
   CheckerSide checker_side_;
   /** String pool for host names */
-  std::set<std::string, std::less<>> hostnames_;
+  std::set<xbt::string, std::less<>> hostnames_;
   // This is the parent snapshot of the current state:
   PageStore page_store_{500};
   std::unique_ptr<RemoteSimulation> remote_simulation_;
   Checker* checker_ = nullptr;
+
+  // Expect MessageType::SIMCALL_TO_STRING or MessageType::SIMCALL_DOT_LABEL
+  std::string simcall_to_string(MessageType type, int aid, int times_considered);
 
 public:
   ModelChecker(ModelChecker const&) = delete;
@@ -40,9 +43,9 @@ public:
     return page_store_;
   }
 
-  std::string const& get_host_name(std::string const& hostname)
+  xbt::string const& get_host_name(const char* hostname)
   {
-    return *this->hostnames_.insert(hostname).first;
+    return *this->hostnames_.insert(xbt::string(hostname)).first;
   }
 
   void start();
