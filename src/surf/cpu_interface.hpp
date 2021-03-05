@@ -48,7 +48,7 @@ public:
  * Resource *
  ************/
 
-class XBT_PUBLIC Cpu : public Resource {
+class XBT_PUBLIC Cpu : public Resource_T<Cpu> {
   friend vm::VirtualMachineImpl; // Resets the VCPU
 
   s4u::Host* piface_;
@@ -74,6 +74,8 @@ public:
 
   Cpu* set_core_count(int core_count);
   virtual int get_core_count();
+
+  void seal() override;
 
   /** @brief Get a forecast of the speed (in flops/s) if the load were as provided.
    *

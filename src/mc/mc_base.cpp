@@ -7,7 +7,7 @@
 #include "mc/mc.h"
 #include "src/kernel/activity/CommImpl.hpp"
 #include "src/kernel/activity/MutexImpl.hpp"
-#include "src/mc/checker/SimcallInspector.hpp"
+#include "src/mc/checker/SimcallObserver.hpp"
 #include "src/mc/mc_config.hpp"
 #include "src/mc/mc_replay.hpp"
 #include "src/simix/smx_private.hpp"
@@ -33,8 +33,8 @@ int MC_random(int min, int max)
     static simgrid::xbt::random::XbtRandom prng;
     return prng.uniform_int(min, max);
   }
-  auto observer = new simgrid::mc::RandomSimcall(SIMIX_process_self(), min, max);
-  return simgrid::kernel::actor::simcall([observer] { return observer->get_value(); }, observer);
+  simgrid::mc::RandomSimcall observer{SIMIX_process_self(), min, max};
+  return simgrid::kernel::actor::simcall([&observer] { return observer.get_value(); }, &observer);
 }
 
 namespace simgrid {
@@ -57,8 +57,8 @@ void wait_for_requests()
   xbt_dynar_reset(simix_global->actors_vector);
   for (std::pair<const aid_t, smx_actor_t> const& kv : simix_global->process_list) {
     auto actor = kv.second;
-    if (actor->simcall_.inspector_ != nullptr)
-      actor->simcall_.mc_max_consider_ = actor->simcall_.inspector_->get_max_consider();
+    if (actor->simcall_.observer_ != nullptr)
+      actor->simcall_.mc_max_consider_ = actor->simcall_.observer_->get_max_consider();
     xbt_dynar_push_as(simix_global->actors_vector, smx_actor_t, actor);
   }
 #endif
@@ -90,8 +90,8 @@ bool actor_is_enabled(smx_actor_t actor)
   // Now, we are in the client app, no need for remote memory reading.
   smx_simcall_t req = &actor->simcall_;
 
-  if (req->inspector_ != nullptr)
-    return req->inspector_->is_enabled();
+  if (req->observer_ != nullptr)
+    return req->observer_->is_enabled();
 
   using simix::Simcall;
   switch (req->call_) {
@@ -163,14 +163,14 @@ bool request_is_visible(const s_smx_simcall* req)
 #if SIMGRID_HAVE_MC
   xbt_assert(mc_model_checker == nullptr, "This should be called from the client side");
 #endif
-  if (req->inspector_ != nullptr)
-    return req->inspector_->is_visible();
+  if (req->observer_ != nullptr)
+    return req->observer_->is_visible();
 
   using simix::Simcall;
   return req->call_ == Simcall::COMM_ISEND || req->call_ == Simcall::COMM_IRECV || req->call_ == Simcall::COMM_WAIT ||
          req->call_ == Simcall::COMM_WAITANY || req->call_ == Simcall::COMM_TEST ||
          req->call_ == Simcall::COMM_TESTANY || req->call_ == Simcall::MUTEX_LOCK ||
-         req->call_ == Simcall::MUTEX_TRYLOCK || req->call_ == Simcall::MUTEX_UNLOCK;
+         req->call_ == Simcall::MUTEX_TRYLOCK;
 }
 
 }

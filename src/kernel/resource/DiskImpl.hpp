@@ -47,7 +47,7 @@ public:
 /************
  * Resource *
  ************/
-class DiskImpl : public Resource, public xbt::PropertyHolder {
+class DiskImpl : public Resource_T<DiskImpl>, public xbt::PropertyHolder {
   s4u::Host* host_           = nullptr;
   s4u::Disk piface_;
   double read_bw_ = -1.0;
@@ -60,10 +60,9 @@ protected:
 
 public:
   DiskImpl(const std::string& name, double read_bandwidth, double write_bandwidth)
-    : Resource(name),
-      piface_(name, this),
-      read_bw_(read_bandwidth),
-      write_bw_(write_bandwidth){}
+      : Resource_T(name), piface_(name, this), read_bw_(read_bandwidth), write_bw_(write_bandwidth)
+  {
+  }
   DiskImpl(const DiskImpl&) = delete;
   DiskImpl& operator=(const DiskImpl&) = delete;
 
@@ -91,7 +90,7 @@ public:
   void turn_on() override;
   void turn_off() override;
 
-  void seal();
+  void seal() override;
   void destroy(); // Must be called instead of the destructor
   virtual DiskAction* io_start(sg_size_t size, s4u::Io::OpType type) = 0;
   virtual DiskAction* read(sg_size_t size)                           = 0;

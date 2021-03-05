@@ -107,11 +107,11 @@ public:
  * @brief SURF network link interface class
  * @details A Link represents the link between two [hosts](@ref simgrid::surf::HostImpl)
  */
-class LinkImpl : public Resource, public xbt::PropertyHolder {
+class LinkImpl : public Resource_T<LinkImpl>, public xbt::PropertyHolder {
   s4u::Link piface_;
 
 protected:
-  LinkImpl(NetworkModel* model, const std::string& name, lmm::Constraint* constraint);
+  LinkImpl(const std::string& name);
   LinkImpl(const LinkImpl&) = delete;
   LinkImpl& operator=(const LinkImpl&) = delete;
   ~LinkImpl() override                 = default; // Use destroy() instead of this destructor.
@@ -146,7 +146,7 @@ public:
   void turn_on() override;
   void turn_off() override;
 
-  void seal();
+  void seal() override;
 
   void on_bandwidth_change() const;
 

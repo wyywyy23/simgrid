@@ -91,10 +91,8 @@ void smpi_bench_begin()
   if (not smpi_cfg_papi_events_file().empty()) {
     int event_set = smpi_process()->papi_event_set();
     // PAPI_start sets everything to 0! See man(3) PAPI_start
-    if (PAPI_LOW_LEVEL_INITED == PAPI_is_initialized() && PAPI_start(event_set) != PAPI_OK) {
-      // TODO This needs some proper handling.
-      XBT_CRITICAL("Could not start PAPI counters.\n");
-      xbt_die("Error.");
+    if (PAPI_LOW_LEVEL_INITED == PAPI_is_initialized() && event_set && PAPI_start(event_set) != PAPI_OK) {
+      xbt_die("Could not start PAPI counters (TODO: this needs some proper handling).");
     }
   }
 #endif
@@ -132,14 +130,10 @@ void smpi_bench_end()
     int event_set                       = smpi_process()->papi_event_set();
     std::vector<long long> event_values(counter_data.size());
 
-    if (PAPI_stop(event_set, &event_values[0]) != PAPI_OK) { // Error
-      XBT_CRITICAL("Could not stop PAPI counters.\n");
-      xbt_die("Error.");
-    } else {
-      for (unsigned int i = 0; i < counter_data.size(); i++) {
-        counter_data[i].second += event_values[i];
-      }
-    }
+    if (event_set && PAPI_stop(event_set, &event_values[0]) != PAPI_OK) // Error
+      xbt_die("Could not stop PAPI counters.");
+    for (unsigned int i = 0; i < counter_data.size(); i++)
+      counter_data[i].second += event_values[i];
   }
 #endif
 
@@ -158,13 +152,12 @@ void smpi_bench_end()
 
 #if HAVE_PAPI
   if (not smpi_cfg_papi_events_file().empty() && TRACE_smpi_is_enabled()) {
-    const simgrid::instr::Container* container =
+    simgrid::instr::Container* container =
         simgrid::instr::Container::by_name(std::string("rank-") + std::to_string(simgrid::s4u::this_actor::get_pid()));
     const papi_counter_t& counter_data = smpi_process()->papi_counters();
 
     for (auto const& pair : counter_data) {
-      auto* variable = static_cast<simgrid::instr::VariableType*>(container->type_->by_name(pair.first));
-      variable->set_event(SIMIX_get_clock(), pair.second);
+      container->get_variable(pair.first)->set_event(SIMIX_get_clock(), pair.second);
     }
   }
 #endif
