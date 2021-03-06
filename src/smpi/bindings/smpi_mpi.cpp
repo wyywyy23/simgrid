@@ -18,6 +18,12 @@ XBT_LOG_NEW_DEFAULT_SUBCATEGORY(smpi_mpi, smpi, "Logging specific to SMPI ,(mpi)
     return MPI_SUCCESS;                                                                                                \
   }
 
+#define NOT_YET_IMPLEMENTED_NULL                                                                                       \
+  {                                                                                                                    \
+    xbt_die("Not yet implemented: %s. Please contact the SimGrid team if support is needed", __func__);                \
+    return nullptr;                                                                                                    \
+  }
+
 #define NOT_YET_IMPLEMENTED_NOFAIL                                                                                     \
   {                                                                                                                    \
     static bool warning_todo = true;                                                                                   \
@@ -74,6 +80,10 @@ XBT_LOG_NEW_DEFAULT_SUBCATEGORY(smpi_mpi, smpi, "Logging specific to SMPI ,(mpi)
 
 #define UNIMPLEMENTED_WRAPPED_PMPI_CALL_NOFAIL(type, name, args, args2)                                                \
   type _XBT_CONCAT(P, name) args { NOT_YET_IMPLEMENTED_NOFAIL }                                                        \
+  type name args { return _XBT_CONCAT(P, name) args2; }
+
+#define UNIMPLEMENTED_WRAPPED_PMPI_CALL_NORETURN(type, name, args, args2)                                              \
+  type _XBT_CONCAT(P, name) args { NOT_YET_IMPLEMENTED_NULL }                                                          \
   type name args { return _XBT_CONCAT(P, name) args2; }
 
 /* MPI User level calls */
@@ -148,6 +158,8 @@ WRAPPED_PMPI_CALL(int,MPI_Finalize,(void),())
 WRAPPED_PMPI_CALL(int,MPI_Free_mem,(void *baseptr),(baseptr))
 WRAPPED_PMPI_CALL_ERRHANDLER_COMM(int,MPI_Gather,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm),(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root, comm))
 WRAPPED_PMPI_CALL_ERRHANDLER_COMM(int,MPI_Gatherv,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int *recvcounts, const int *displs,MPI_Datatype recvtype, int root, MPI_Comm comm),(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm))
+WRAPPED_PMPI_CALL_NORETURN(MPI_Aint,MPI_Aint_add,(MPI_Aint add, MPI_Aint disp),(add, disp))
+WRAPPED_PMPI_CALL_NORETURN(MPI_Aint,MPI_Aint_diff,(MPI_Aint add, MPI_Aint disp),(add, disp))
 WRAPPED_PMPI_CALL(int,MPI_Get_address,(const void *location, MPI_Aint * address),(location, address))
 WRAPPED_PMPI_CALL(int,MPI_Get_count,(const MPI_Status * status, MPI_Datatype datatype, int *count),(status, datatype, count))
 WRAPPED_PMPI_CALL(int,MPI_Get_library_version ,(char *version,int *len),(version,len))
@@ -267,8 +279,10 @@ WRAPPED_PMPI_CALL(int,MPI_Type_get_attr ,(MPI_Datatype type, int type_keyval, vo
 WRAPPED_PMPI_CALL(int,MPI_Type_get_contents,(MPI_Datatype datatype, int max_integers, int max_addresses, int max_datatypes, int* array_of_integers, MPI_Aint* array_of_addresses, MPI_Datatype *array_of_datatypes),(datatype, max_integers, max_addresses,max_datatypes, array_of_integers, array_of_addresses, array_of_datatypes))
 WRAPPED_PMPI_CALL(int,MPI_Type_get_envelope,( MPI_Datatype datatype, int *num_integers, int *num_addresses, int *num_datatypes, int *combiner),(datatype, num_integers, num_addresses, num_datatypes, combiner))
 WRAPPED_PMPI_CALL(int,MPI_Type_get_extent,(MPI_Datatype datatype, MPI_Aint * lb, MPI_Aint * extent),(datatype, lb, extent))
+WRAPPED_PMPI_CALL(int,MPI_Type_get_extent_x,(MPI_Datatype datatype, MPI_Count * lb, MPI_Count * extent),(datatype, lb, extent))
 WRAPPED_PMPI_CALL(int,MPI_Type_get_name,(MPI_Datatype datatype, char * name, int* len),(datatype,name,len))
 WRAPPED_PMPI_CALL(int,MPI_Type_get_true_extent,(MPI_Datatype datatype, MPI_Aint * lb, MPI_Aint * extent),(datatype, lb, extent))
+WRAPPED_PMPI_CALL(int,MPI_Type_get_true_extent_x,(MPI_Datatype datatype, MPI_Count * lb, MPI_Count * extent),(datatype, lb, extent))
 WRAPPED_PMPI_CALL(int,MPI_Type_hindexed,(int count, const int* blocklens, const MPI_Aint* indices, MPI_Datatype old_type, MPI_Datatype* newtype) ,(count, blocklens, indices, old_type, newtype))
 WRAPPED_PMPI_CALL(int,MPI_Type_hvector,(int count, int blocklen, MPI_Aint stride, MPI_Datatype old_type, MPI_Datatype* newtype) ,(count, blocklen, stride, old_type, newtype))
 WRAPPED_PMPI_CALL(int,MPI_Type_indexed,(int count, const int* blocklens, const int* indices, MPI_Datatype old_type, MPI_Datatype* newtype) ,(count, blocklens, indices, old_type, newtype))
@@ -339,6 +353,7 @@ WRAPPED_PMPI_CALL(int, MPI_Cancel,(MPI_Request* request) ,(request))
 WRAPPED_PMPI_CALL(int, MPI_Test_cancelled,(const MPI_Status* status, int* flag) ,(status, flag))
 WRAPPED_PMPI_CALL(int, MPI_Status_set_cancelled,(MPI_Status *status,int flag),(status,flag))
 WRAPPED_PMPI_CALL(int, MPI_Status_set_elements,( MPI_Status *status, MPI_Datatype datatype, int count),( status, datatype, count))
+WRAPPED_PMPI_CALL(int, MPI_Status_set_elements_x,( MPI_Status *status, MPI_Datatype datatype, MPI_Count count),( status, datatype, count))
 WRAPPED_PMPI_CALL_ERRHANDLER_COMM(int, MPI_File_open,(MPI_Comm comm, const char *filename, int amode, MPI_Info info, MPI_File *fh),(comm, filename, amode, info, fh))
 WRAPPED_PMPI_CALL_ERRHANDLER(int, MPI_File_close,(MPI_File *fh), (fh), (*fh))
 WRAPPED_PMPI_CALL(int, MPI_File_delete,(const char *filename, MPI_Info info), (filename, info))
@@ -385,15 +400,19 @@ UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Close_port,(const char *port_name),( por
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_accept,(const char *port_name, MPI_Info info, int root, MPI_Comm comm, MPI_Comm *newcomm),( port_name, info, root, comm, newcomm))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_connect,(const char *port_name, MPI_Info info, int root, MPI_Comm comm, MPI_Comm *newcomm),( port_name, info, root, comm, newcomm))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_get_parent,( MPI_Comm *parent),( parent))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_idup,( MPI_Comm comm, MPI_Comm *newcomm, MPI_Request* request),( comm,  newcomm, request))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_join,( int fd, MPI_Comm *intercomm),( fd, intercomm))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_remote_group,(MPI_Comm comm, MPI_Group* group) ,(comm, group))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_remote_size,(MPI_Comm comm, int* size) ,(comm, size))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_spawn,(const char *command, char **argv, int maxprocs, MPI_Info info, int root, MPI_Comm comm, MPI_Comm *intercomm, int* array_of_errcodes),( command, argv, maxprocs, info, root, comm, intercomm, array_of_errcodes))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_spawn_multiple,(int count, char **array_of_commands, char*** array_of_argv, int* array_of_maxprocs, MPI_Info* array_of_info, int root, MPI_Comm comm, MPI_Comm *intercomm, int* array_of_errcodes), (count, array_of_commands, array_of_argv, array_of_maxprocs, array_of_info, root, comm, intercomm, array_of_errcodes))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Comm_test_inter,(MPI_Comm comm, int* flag) ,(comm, flag))
-UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Register_datarep, (char *datarep, MPI_Datarep_conversion_function *read_conversion_fn, MPI_Datarep_conversion_function *write_conversion_fn, MPI_Datarep_extent_function *dtype_file_extent_fn, void *extra_state) ,(datarep, read_conversion_fn, write_conversion_fn, dtype_file_extent_fn, extra_state))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_Dist_graph_create, (MPI_Comm comm_old, int n, const int* sources, const int* degrees, const int* destinations, const int* weights, MPI_Info info, int reorder, MPI_Comm* comm_dist_graph), (comm_old, n, sources, degrees, destinations, weights, info, reorder, comm_dist_graph))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_Dist_graph_create_adjacent, (MPI_Comm comm_old, int indegree, const int* sources, const int* sourceweights, int outdegree, const int* destinations, const int* destweights, MPI_Info info, int reorder, MPI_Comm* comm_dist_graph), (comm_old, indegree, sources, sourceweights, outdegree, destinations, destweights, info, reorder, comm_dist_graph))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_Dist_graph_neighbors, (MPI_Comm comm, int maxindegree, int* sources, int* sourceweights, int maxoutdegree, int* destinations, int* destweights), (comm, maxindegree, sources, sourceweights, maxoutdegree, destinations, destweights))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_Dist_graph_neighbors_count, (MPI_Comm comm, int *indegree, int *outdegree, int *weighted), (comm, indegree, outdegree, weighted))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(MPI_Fint, MPI_File_c2f,(MPI_File file), (file))
-//UNIMPLEMENTED_WRAPPED_PMPI_CALL(MPI_File, MPI_File_f2c,(MPI_Fint file), (file))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL_NORETURN(MPI_File, MPI_File_f2c,(MPI_Fint file), (file))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_set_size,(MPI_File fh, MPI_Offset size), (fh, size))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_preallocate,(MPI_File fh, MPI_Offset size), (fh, size))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_iread_at,(MPI_File fh, MPI_Offset offset, void *buf, int count, MPI_Datatype datatype, MPI_Request *request), (fh, offset, buf, count, datatype, request))
@@ -423,28 +442,47 @@ UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_get_type_extent,(MPI_File fh, MPI_
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_set_atomicity,(MPI_File fh, int flag), (fh, flag))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int, MPI_File_get_atomicity,(MPI_File fh, int *flag), (fh, flag))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Get_elements,(MPI_Status* status, MPI_Datatype datatype, int* elements) ,(status, datatype, elements))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Get_elements_x,(MPI_Status* status, MPI_Datatype datatype, MPI_Count* elements) ,(status, datatype, elements))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graph_create,(MPI_Comm comm_old, int nnodes, const int* index, const int* edges, int reorder, MPI_Comm* comm_graph) ,(comm_old, nnodes, index, edges, reorder, comm_graph))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graphdims_get,(MPI_Comm comm, int* nnodes, int* nedges) ,(comm, nnodes, nedges))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graph_get,(MPI_Comm comm, int maxindex, int maxedges, int* index, int* edges) ,(comm, maxindex, maxedges, index, edges))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graph_map,(MPI_Comm comm_old, int nnodes, const int* index, const int* edges, int* newrank) ,(comm_old, nnodes, index, edges, newrank))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graph_neighbors_count,(MPI_Comm comm, int rank, int* nneighbors) ,(comm, rank, nneighbors))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Graph_neighbors,(MPI_Comm comm, int rank, int maxneighbors, int* neighbors) ,(comm, rank, maxneighbors, neighbors))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Improbe,(int source, int tag, MPI_Comm comm, int* flag, MPI_Message *message, MPI_Status* status) ,(source, tag, comm, flag, message, status))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Imrecv,(void *buf, int count, MPI_Datatype datatype, MPI_Message *message, MPI_Request *request),(buf, count, datatype, message, request))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Intercomm_create,(MPI_Comm local_comm, int local_leader, MPI_Comm peer_comm, int remote_leader, int tag,MPI_Comm* comm_out) ,(local_comm, local_leader, peer_comm, remote_leader, tag, comm_out))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Intercomm_merge,(MPI_Comm comm, int high, MPI_Comm* comm_out) ,(comm, high, comm_out))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Lookup_name,( char *service_name, MPI_Info info, char *port_name),( service_name, info, port_name))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL_NORETURN(XBT_PUBLIC MPI_Message, MPI_Message_f2c, (MPI_Fint message), (message))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(XBT_PUBLIC MPI_Fint, MPI_Message_c2f, (MPI_Message message), (message))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Mprobe,(int source, int tag, MPI_Comm comm, MPI_Message *message, MPI_Status* status) ,(source, tag, comm, message, status))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Mrecv,(void *buf, int count, MPI_Datatype datatype, MPI_Message *message, MPI_Status* status),(buf, count, datatype, message, status))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Neighbor_allgather,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm),(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Neighbor_allgatherv,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int *recvcounts, const int *displs,MPI_Datatype recvtype, MPI_Comm comm),(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Neighbor_alltoall,(const void *sendbuf, int sendcount, MPI_Datatype sendtype,void *recvbuf, int recvcount,MPI_Datatype recvtype, MPI_Comm comm),(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Neighbor_alltoallv,(const void *sendbuf, const int *sendcounts, const int *senddisps, MPI_Datatype sendtype, void *recvbuf, const int *recvcounts, const int *recvdisps, MPI_Datatype recvtype, MPI_Comm comm),(sendbuf, sendcounts, senddisps, sendtype, recvbuf, recvcounts, recvdisps, recvtype, comm))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Neighbor_alltoallw,(const void *sendbuf, const int *sendcnts, const MPI_Aint *sdispls, const MPI_Datatype *sendtypes, void *recvbuf, const int *recvcnts, const MPI_Aint *rdispls, const MPI_Datatype *recvtypes, MPI_Comm comm),( sendbuf, sendcnts, sdispls, sendtypes, recvbuf, recvcnts, rdispls, recvtypes, comm))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Ineighbor_allgather,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, int recvcount, MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request),(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Ineighbor_allgatherv,(const void *sendbuf, int sendcount, MPI_Datatype sendtype, void *recvbuf, const int *recvcounts, const int *displs,MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request),(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, comm, request))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Ineighbor_alltoall,(const void *sendbuf, int sendcount, MPI_Datatype sendtype,void *recvbuf, int recvcount,MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request),(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, comm, request))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Ineighbor_alltoallv,(const void *sendbuf, const int *sendcounts, const int *senddisps, MPI_Datatype sendtype, void *recvbuf, const int *recvcounts, const int *recvdisps, MPI_Datatype recvtype, MPI_Comm comm, MPI_Request *request),(sendbuf, sendcounts, senddisps, sendtype, recvbuf, recvcounts, recvdisps, recvtype, comm, request))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Ineighbor_alltoallw,(const void *sendbuf, const int *sendcnts, const MPI_Aint *sdispls, const MPI_Datatype *sendtypes, void *recvbuf, const int *recvcnts, const MPI_Aint *rdispls, const MPI_Datatype *recvtypes, MPI_Comm comm, MPI_Request *request),( sendbuf, sendcnts, sdispls, sendtypes, recvbuf, recvcnts, rdispls, recvtypes, comm, request))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Open_port,( MPI_Info info, char *port_name),( info,port_name))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Pack_external,(char *datarep, void *inbuf, int incount, MPI_Datatype datatype, void *outbuf, MPI_Aint outcount, MPI_Aint *position),(datarep, inbuf, incount, datatype, outbuf, outcount, position))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Pack_external_size,(char *datarep, int incount, MPI_Datatype datatype, MPI_Aint *size),(datarep, incount, datatype, size))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Pcontrol,(const int level, ... ),(level))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Publish_name,( char *service_name, MPI_Info info, char *port_name),( service_name, info, port_name))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Register_datarep, (char *datarep, MPI_Datarep_conversion_function *read_conversion_fn, MPI_Datarep_conversion_function *write_conversion_fn, MPI_Datarep_extent_function *dtype_file_extent_fn, void *extra_state) ,(datarep, read_conversion_fn, write_conversion_fn, dtype_file_extent_fn, extra_state))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(XBT_PUBLIC int, MPI_Status_f2c, (MPI_Fint *f_status, MPI_Status *c_status), (f_status, c_status))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(XBT_PUBLIC int, MPI_Status_c2f, (MPI_Status *c_status, MPI_Fint *f_status), (c_status, f_status))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Topo_test,(MPI_Comm comm, int* top_type) ,(comm, top_type))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Type_create_f90_integer,(int count, MPI_Datatype *datatype),(count, datatype))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Type_create_f90_real,(int prec, int exp, MPI_Datatype *datatype),(prec, exp, datatype))
+UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Type_create_f90_complex,(int prec, int exp, MPI_Datatype *datatype),(prec, exp, datatype))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Type_create_darray,(int size, int rank, int ndims, int* array_of_gsizes, int* array_of_distribs, int* array_of_dargs, int* array_of_psizes,int order, MPI_Datatype oldtype, MPI_Datatype *newtype) ,(size, rank, ndims, array_of_gsizes,array_of_distribs, array_of_dargs, array_of_psizes,order,oldtype, newtype))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Type_match_size,(int typeclass,int size,MPI_Datatype *datatype),(typeclass,size,datatype))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Unpack_external,(char *datarep, void *inbuf, MPI_Aint insize, MPI_Aint *position, void *outbuf, int outcount, MPI_Datatype datatype),( datarep, inbuf, insize, position, outbuf, outcount, datatype))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Unpublish_name,( char *service_name, MPI_Info info, char *port_name),( service_name, info, port_name))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Win_test,(MPI_Win win, int *flag),(win, flag))
 UNIMPLEMENTED_WRAPPED_PMPI_CALL_NOFAIL(int,MPI_Win_sync,(MPI_Win win),(win))
-UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Mprobe,(int source, int tag, MPI_Comm comm, MPI_Message *message, MPI_Status* status) ,(source, tag, comm, message, status))
-UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Mrecv,(void *buf, int count, MPI_Datatype datatype, MPI_Message *message, MPI_Status* status),(buf, count, datatype, message, status))
-UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Improbe,(int source, int tag, MPI_Comm comm, int* flag, MPI_Message *message, MPI_Status* status) ,(source, tag, comm, flag, message, status))
-UNIMPLEMENTED_WRAPPED_PMPI_CALL(int,MPI_Imrecv,(void *buf, int count, MPI_Datatype datatype, MPI_Message *message, MPI_Request *request),(buf, count, datatype, message, request))
