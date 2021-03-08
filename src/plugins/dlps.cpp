@@ -119,7 +119,7 @@ void DLPS::update_on_comm_start(double actual_start_time)
     }
   } else {
     current_instantaneous_power = data_rate_to_power(
-        (dlps_mode == "full" || dlps_mode == "laser") ?
+        (dlps_mode == "full" || dlps_mode == "laser" || dlps_mode == "on-off") ?
         current_instantaneous_bytes_per_second : link_->get_bandwidth());
     energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
   }
@@ -129,7 +129,7 @@ void DLPS::update_on_comm_start(double actual_start_time)
   cumulated_energy_ += energy_since_last_update;
 
   last_updated_ = now;
-  XBT_INFO("%s,communicate,%.17f,%f,%ld,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_num_active_actions_at(now), energy_since_last_update);
+  XBT_INFO("%s,communicate,%.17f,%f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_bandwidth());
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
@@ -173,7 +173,7 @@ void DLPS::update_on_comm_end(double actual_start_time)
   // Update cumulated energy
   duration_since_last_update         = now - last_updated_;
   double current_instantaneous_power = data_rate_to_power(
-      (dlps_mode == "full" || dlps_mode == "laser") ?
+      (dlps_mode == "full" || dlps_mode == "laser" || dlps_mode == "on-off") ?
       current_instantaneous_bytes_per_second : link_->get_bandwidth());
   double energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
@@ -181,7 +181,7 @@ void DLPS::update_on_comm_end(double actual_start_time)
   cumulated_energy_ += energy_since_last_update;
 
   last_updated_ = now;
-  XBT_INFO("%s,finished,%.17f,%f,%ld,%.17f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_num_active_actions_at(now), energy_since_last_update);
+  XBT_INFO("%s,finished,%.17f,%f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_bandwidth());
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
