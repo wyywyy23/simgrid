@@ -78,23 +78,14 @@ CpuCas01Model::~CpuCas01Model()
   surf_cpu_model_pm = nullptr;
 }
 
-Cpu* CpuCas01Model::create_cpu(s4u::Host* host, const std::vector<double>& speed_per_pstate, int core)
+Cpu* CpuCas01Model::create_cpu(s4u::Host* host, const std::vector<double>& speed_per_pstate)
 {
-  return new CpuCas01(this, host, speed_per_pstate, core);
+  return (new CpuCas01(host, speed_per_pstate))->set_model(this);
 }
 
 /************
  * Resource *
  ************/
-CpuCas01::CpuCas01(CpuCas01Model* model, s4u::Host* host, const std::vector<double>& speed_per_pstate, int core)
-    : Cpu(host, speed_per_pstate)
-{
-  this->set_core_count(core)->set_model(model)->set_constraint(
-      model->get_maxmin_system()->constraint_new(this, core * speed_per_pstate.front()));
-}
-
-CpuCas01::~CpuCas01() = default;
-
 bool CpuCas01::is_used() const
 {
   return get_model()->get_maxmin_system()->constraint_used(get_constraint());
@@ -212,11 +203,6 @@ CpuCas01Action::CpuCas01Action(Model* model, double cost, bool failed, double sp
   if (model->is_update_lazy())
     set_last_update();
   model->get_maxmin_system()->expand(constraint, get_variable(), 1.0);
-}
-
-CpuCas01Action::CpuCas01Action(Model* model, double cost, bool failed, double speed, lmm::Constraint* constraint)
-    : CpuCas01Action(model, cost, failed, speed, constraint, /* requested_core */ 1)
-{
 }
 
 int CpuCas01Action::requested_core() const

@@ -1,7 +1,78 @@
+.. _models:
+
+The SimGrid Models
+##################
+
+.. todo::
+
+   - Main existing models (contention, cste, LM07)
+   - Main concepts (Routing, LMM) + link to the papers
+   - How to switch on the command line
+
+.. _understanding_lv08:
+
+The default TCP model
+*********************
+
+When simulating a data transfer between two hosts, you may be surprised
+by the obtained simulation time. Lets consider the following platform:
+
+.. code-block:: xml
+
+   <host id="A" speed="1Gf" />
+   <host id="B" speed="1Gf" />
+
+   <link id="link1" latency="10ms" bandwidth="1Mbps" />
+
+   <route src="A" dst="B">
+     <link_ctn id="link1" />
+   </route>
+
+If host `A` sends `100kB` (a hundred kilobytes) to host `B`, one could expect
+that this communication would take `0.81` seconds to complete according to a
+simple latency-plus-size-divided-by-bandwidth model (0.01 + 8e5/1e6 = 0.81).
+However, the default TCP model of SimGrid is a bit more complex than that. It
+
+accounts for three phenomena that directly impact the simulation time even
+on such a simple example:
+
+  - The size of a message at the application level (i.e., 100kB in this
+    example) is not the size that will actually be transferred over the
+    network. To mimic the fact that TCP and IP headers are added to each packet of
+    the original payload, the TCP model of SimGrid empirically considers that
+    `only 97% of the nominal bandwidth` are available. In other words, the
+    size of your message is increased by a few percents, whatever this size be.
+
+  - In the real world, the TCP protocol is not able to fully exploit the
+    bandwidth of a link from the emission of the first packet. To reflect this
+    `slow start` phenomenon, the latency declared in the platform file is
+    multiplied by `a factor of 13.01`. Here again, this is an empirically
+    determined value that may not correspond to every TCP implementations on
+    every networks. It can be tuned when more realistic simulated times for
+    short messages are needed though.
+
+  - When data is transferred from A to B, some TCP ACK messages travel in the
+    opposite direction. To reflect the impact of this `cross-traffic`, SimGrid
+    simulates a flow from B to A that represents an additional bandwidth
+    consumption of `0.05`. The route from B to A is implicitly declared in the
+    platform file and uses the same link `link1` as if the two hosts were
+    connected through a communication bus. The bandwidth share allocated to the
+    flow from A to B is then the available bandwidth of `link1` (i.e., 97% of
+    the nominal bandwidth of 1Mb/s) divided by 1.05 (i.e., the total consumption).
+    This feature, activated by default, can be disabled by adding the
+    `--cfg=network/crosstraffic:0` flag to command line.
+
+As a consequence, the time to transfer 100kB from A to B as simulated by the
+default TCP model of SimGrid is not 0.81 seconds but
+
+.. code-block:: python
+
+    0.01 * 13.01 + 800000 / ((0.97 * 1e6) / 1.05) =  0.996079 seconds.
+
 .. _model_ns3:
 
 ns-3 as a SimGrid model
-#######################
+***********************
 
 You can use the well-known `ns-3 packet-level network simulator
 <http://www.nsnam.org>`_ as a SimGrid model, for example to investigate the
@@ -18,10 +89,10 @@ immediately upon startup.
 
 
 Compiling the ns-3/SimGrid binding
-**********************************
+==================================
 
 Installing ns-3
-===============
+---------------
 
 SimGrid requires ns-3 version 3.26 or higher, and you probably want the most
 recent version of both SimGrid and ns-3. While the Debian package of SimGrid
@@ -30,7 +101,7 @@ of ns-3 by grabbing the ``libns3-dev ns3`` packages. Alternatively, you can
 install ns-3 from scratch (see the `ns-3 documentation <http://www.nsnam.org>`_).
 
 Enabling ns-3 in SimGrid
-========================
+------------------------
 
 SimGrid must be recompiled with the ``enable_ns3`` option activated in cmake.
 Optionally, use ``NS3_HINT`` to tell cmake where ns3 is installed on
@@ -55,7 +126,7 @@ integration. If no test is run at all, you probably forgot to enable ns-3 in cma
    ctest -R ns3
 
 Troubleshooting
-===============
+---------------
 
 If you use a version of ns-3 that is not known to SimGrid yet, edit
 ``tools/cmake/Modules/FindNS3.cmake`` in your SimGrid tree, according to the
@@ -65,10 +136,10 @@ version of either SimGrid or ns-3, try upgrading everything.
 .. _ns3_use:
 
 Using ns-3 from SimGrid
-***********************
+=======================
 
 Platform files compatibility
-============================
+----------------------------
 
 Any route longer than one will be ignored when using ns-3. They are
 harmless, but you still need to connect your hosts using one-hop routes.
@@ -137,7 +208,7 @@ Check the file  `examples/cpp/network-ns3/network-ns3.tesh <https://framagit.org
 to see which ones are used in our regression tests.
 
 WiFi platforms
---------------
+^^^^^^^^^^^^^^
 
 In SimGrid, WiFi networks are modeled with WiFi zones, where a zone contains 
 the access point of the WiFi network and the hosts connected to it (called 
@@ -189,8 +260,7 @@ a zoneRoute. Note that the connection between two zones is always wired.
 	</zoneRoute>
 
 WiFi network performance
-^^^^^^^^^^^^^^^^^^^^^^^^
-
+""""""""""""""""""""""""
 
 The performance of a wifi network is controlled by 3 property that can be added
 to hosts connected to the wifi zone:
@@ -231,7 +301,7 @@ Here is an example of a host changing ``wifi_distance`` value.
 	</host>
 
 Random Number Generator
-=======================
+-----------------------
 
 It is possible to define a fixed or random seed to the ns3 random number 
 generator using the config tag.
@@ -253,7 +323,7 @@ it will use a random seed, defined to a number it will use this number as
 the seed.
 
 Limitations
-===========
+-----------
 
 A ns-3 platform is automatically created from the provided SimGrid
 platform. However, there are some known caveats:
@@ -270,13 +340,15 @@ this plugin, and/or create your own plugin from the existing one. If you come up
 with interesting improvements, please contribute them back.
 
 Troubleshooting
-===============
+---------------
 
 If your simulation hangs in a communication, this is probably because one host
 is sending data that is not routable in your platform. Make sure that you only
 use routes of length 1, and that any host is connected to the platform.
 Arguably, SimGrid could detect this situation and report it, but unfortunately,
 this is still to be done.
+
+
 
 .. |br| raw:: html
 
