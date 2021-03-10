@@ -6,6 +6,16 @@
 #include "src/kernel/activity/MutexImpl.hpp"
 #include "src/kernel/activity/SynchroRaw.hpp"
 
+#if SIMGRID_HAVE_MC
+#include "simgrid/modelchecker.h"
+#include "src/mc/mc_safety.hpp"
+#define MC_CHECK_NO_DPOR()                                                                                             \
+  xbt_assert(not MC_is_active() || simgrid::mc::reduction_mode != simgrid::mc::ReductionMode::dpor,                    \
+             "Mutex is currently not supported with DPOR,  use --cfg=model-check/reduction:none")
+#else
+#define MC_CHECK_NO_DPOR() (void)0
+#endif
+
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(simix_mutex, simix_synchro, "Mutex kernel-space implementation");
 
 namespace simgrid {
@@ -15,13 +25,14 @@ namespace activity {
 void MutexImpl::lock(actor::ActorImpl* issuer)
 {
   XBT_IN("(%p; %p)", this, issuer);
+  MC_CHECK_NO_DPOR();
   /* FIXME: check where to validate the arguments */
   RawImplPtr synchro = nullptr;
 
   if (locked_) {
     /* FIXME: check if the host is active ? */
     /* Somebody using the mutex, use a synchronization to get host failures */
-    synchro = RawImplPtr(new RawImpl());
+    synchro = RawImplPtr(new RawImpl([this, issuer]() { this->remove_sleeping_actor(*issuer); }));
     (*synchro).set_host(issuer->get_host()).start();
     synchro->simcalls_.push_back(&issuer->simcall_);
     issuer->waiting_synchro_ = synchro;
@@ -43,6 +54,7 @@ void MutexImpl::lock(actor::ActorImpl* issuer)
 bool MutexImpl::try_lock(actor::ActorImpl* issuer)
 {
   XBT_IN("(%p, %p)", this, issuer);
+  MC_CHECK_NO_DPOR();
   if (locked_) {
     XBT_OUT();
     return false;
@@ -96,15 +108,3 @@ void MutexImpl::unref()
 } // namespace activity
 } // namespace kernel
 } // namespace simgrid
-
-// Simcall handlers:
-
-void simcall_HANDLER_mutex_lock(smx_simcall_t simcall, smx_mutex_t mutex)
-{
-  mutex->lock(simcall->issuer_);
-}
-
-int simcall_HANDLER_mutex_trylock(smx_simcall_t simcall, smx_mutex_t mutex)
-{
-  return mutex->try_lock(simcall->issuer_);
-}

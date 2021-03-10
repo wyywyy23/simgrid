@@ -6,6 +6,7 @@
 #include "src/surf/network_cm02.hpp"
 #include "simgrid/s4u/Host.hpp"
 #include "simgrid/sg_config.hpp"
+#include "src/kernel/EngineImpl.hpp"
 #include "src/kernel/resource/profile/Event.hpp"
 #include "src/surf/network_wifi.hpp"
 #include "src/surf/surf_interface.hpp"
@@ -17,9 +18,9 @@
 
 XBT_LOG_EXTERNAL_DEFAULT_CATEGORY(res_network);
 
-double sg_latency_factor = 1.0; /* default value; can be set by model or from command line */
-double sg_bandwidth_factor = 1.0;       /* default value; can be set by model or from command line */
-double sg_weight_S_parameter = 0.0;     /* default value; can be set by model or from command line */
+double sg_latency_factor     = 1.0; /* default value; can be set by model or from command line */
+double sg_bandwidth_factor   = 1.0; /* default value; can be set by model or from command line */
+double sg_weight_S_parameter = 0.0; /* default value; can be set by model or from command line */
 
 double dlps_delay_tuning = 1.0e-3;
 double dlps_delay_laser_stabilizing = 10.0e-9;
@@ -44,9 +45,9 @@ double dlps_idle_threshold_laser = 300.0e-9;
 /*  } */
 void surf_network_model_init_LegrandVelho()
 {
-  xbt_assert(surf_network_model == nullptr, "Cannot set the network model twice");
-
-  surf_network_model = new simgrid::kernel::resource::NetworkCm02Model();
+  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>();
+  simgrid::kernel::EngineImpl::get_instance()->add_model(simgrid::kernel::resource::Model::Type::NETWORK,
+                                                         std::move(net_model), true);
 
   simgrid::config::set_default<double>("network/latency-factor", 13.01);
   simgrid::config::set_default<double>("network/bandwidth-factor", 0.97);
@@ -66,13 +67,13 @@ void surf_network_model_init_LegrandVelho()
 /* } */
 void surf_network_model_init_CM02()
 {
-  xbt_assert(surf_network_model == nullptr, "Cannot set the network model twice");
-
   simgrid::config::set_default<double>("network/latency-factor", 1.0);
   simgrid::config::set_default<double>("network/bandwidth-factor", 1.0);
   simgrid::config::set_default<double>("network/weight-S", 0.0);
 
-  surf_network_model = new simgrid::kernel::resource::NetworkCm02Model();
+  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>();
+  simgrid::kernel::EngineImpl::get_instance()->add_model(simgrid::kernel::resource::Model::Type::NETWORK,
+                                                         std::move(net_model), true);
 }
 
 namespace simgrid {
@@ -80,35 +81,39 @@ namespace kernel {
 namespace resource {
 
 NetworkCm02Model::NetworkCm02Model()
-    : NetworkModel(simgrid::config::get_value<std::string>("network/optim") == "Full" ? Model::UpdateAlgo::FULL
-                                                                                      : Model::UpdateAlgo::LAZY)
+    : NetworkModel(config::get_value<std::string>("network/optim") == "Full" ? Model::UpdateAlgo::FULL
+                                                                             : Model::UpdateAlgo::LAZY)
 {
-  all_existing_models.push_back(this);
-
-  std::string optim = simgrid::config::get_value<std::string>("network/optim");
-  bool select       = simgrid::config::get_value<bool>("network/maxmin-selective-update");
+  std::string optim = config::get_value<std::string>("network/optim");
+  bool select       = config::get_value<bool>("network/maxmin-selective-update");
 
   if (optim == "Lazy") {
-    xbt_assert(select || simgrid::config::is_default("network/maxmin-selective-update"),
+    xbt_assert(select || config::is_default("network/maxmin-selective-update"),
                "You cannot disable network selective update when using the lazy update mechanism");
     select = true;
   }
 
   set_maxmin_system(new lmm::System(select));
-  loopback_ = NetworkCm02Model::create_link("__loopback__", 
-                                            std::vector<double>{simgrid::config::get_value<double>("network/loopback-bw")},
-                                            s4u::Link::SharingPolicy::FATPIPE)->set_latency(simgrid::config::get_value<double>("network/loopback-lat"));
+  loopback_ = NetworkCm02Model::create_link("__loopback__",
+                                            std::vector<double>{config::get_value<double>("network/loopback-bw")},
+                                            s4u::Link::SharingPolicy::FATPIPE)
+                  ->set_latency(config::get_value<double>("network/loopback-lat"));
   loopback_->seal();
 }
 
 LinkImpl* NetworkCm02Model::create_link(const std::string& name, const std::vector<double>& bandwidths,
                                         s4u::Link::SharingPolicy policy)
 {
-  if (policy == s4u::Link::SharingPolicy::WIFI)
-    return (new NetworkWifiLink(name, bandwidths, get_maxmin_system()))->set_model(this);
+  LinkImpl* link;
+  if (policy == s4u::Link::SharingPolicy::WIFI) {
+    link = new NetworkWifiLink(name, bandwidths, get_maxmin_system());
+  } else {
+    xbt_assert(bandwidths.size() == 1, "Non-WIFI links must use only 1 bandwidth.");
+    link = new NetworkCm02Link(name, bandwidths[0], policy, get_maxmin_system());
+  }
 
-  xbt_assert(bandwidths.size() == 1, "Non-WIFI links must use only 1 bandwidth.");
-  return (new NetworkCm02Link(name, bandwidths[0], policy, get_maxmin_system()))->set_model(this);
+  link->set_model(this);
+  return link;
 }
 
 void NetworkCm02Model::update_actions_state_lazy(double now, double /*delta*/)
@@ -223,10 +228,11 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     action = new NetworkCm02Action(this, *src, *dst, size, failed);
   else
     action = new NetworkWifiAction(this, *src, *dst, size, failed, src_wifi_link, dst_wifi_link);
-  action->sharing_penalty_  = latency;
-  action->latency_ = latency;
-  action->rate_ = rate;
-  XBT_INFO("Requested rate: %f", action->rate_);
+
+  action->sharing_penalty_ = latency;
+  action->latency_         = latency;
+  action->set_user_bound(rate);
+  XBT_INFO("Requested rate: %f", action->get_user_bound());
 
   if (is_update_lazy()) {
     action->set_last_update();
@@ -246,8 +252,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
 
   action->lat_current_ = action->latency_;
   action->latency_ *= get_latency_factor(size);
-  action->rate_ = get_bandwidth_constraint(action->rate_, bandwidth_bound, size);
-  XBT_INFO("Constrained rate: %f", action->rate_);
+  action->set_user_bound(get_bandwidth_constraint(action->get_user_bound(), bandwidth_bound, size));
+  XBT_INFO("Constrained rate: %f", action->get_user_bound());
 
   // DLPS
   double extra_latency = 0.0;
@@ -311,14 +317,14 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   } else
     action->set_variable(get_maxmin_system()->variable_new(action, 1.0, -1.0, constraints_per_variable));
 
-  if (action->rate_ < 0) {
+  if (action->get_user_bound() < 0) {
     get_maxmin_system()->update_variable_bound(
         action->get_variable(), (action->lat_current_ > 0) ? cfg_tcp_gamma / (2.0 * action->lat_current_) : -1.0);
   } else {
     get_maxmin_system()->update_variable_bound(
         action->get_variable(), (action->lat_current_ > 0)
-                                    ? std::min(action->rate_, cfg_tcp_gamma / (2.0 * action->lat_current_))
-                                    : action->rate_);
+                                    ? std::min(action->get_user_bound(), cfg_tcp_gamma / (2.0 * action->lat_current_))
+                                    : action->get_user_bound());
   }
 
   if (src_wifi_link != nullptr)
@@ -415,7 +421,7 @@ void NetworkCm02Link::set_bandwidth(double value)
     const kernel::lmm::Variable* var;
     const kernel::lmm::Element* elem     = nullptr;
     const kernel::lmm::Element* nextelem = nullptr;
-    int numelem                  = 0;
+    int numelem                          = 0;
     while ((var = get_constraint()->get_variable_safe(&elem, &nextelem, &numelem))) {
       auto* action = static_cast<NetworkCm02Action*>(var->get_id());
       action->sharing_penalty_ += delta;
@@ -429,27 +435,28 @@ LinkImpl* NetworkCm02Link::set_latency(double value)
 {
   latency_check(value);
 
-  double delta                 = value - latency_.peak;
+  double delta = value - latency_.peak;
   const kernel::lmm::Variable* var;
   const kernel::lmm::Element* elem     = nullptr;
   const kernel::lmm::Element* nextelem = nullptr;
-  int numelem                  = 0;
+  int numelem                          = 0;
 
   latency_.scale = 1.0;
-  latency_.peak = value;
+  latency_.peak  = value;
 
   while ((var = get_constraint()->get_variable_safe(&elem, &nextelem, &numelem))) {
     auto* action = static_cast<NetworkCm02Action*>(var->get_id());
     action->lat_current_ += delta;
     action->sharing_penalty_ += delta;
-    if (action->rate_ < 0)
+    if (action->get_user_bound() < 0)
       get_model()->get_maxmin_system()->update_variable_bound(action->get_variable(), NetworkModel::cfg_tcp_gamma /
                                                                                           (2.0 * action->lat_current_));
     else {
       get_model()->get_maxmin_system()->update_variable_bound(
-          action->get_variable(), std::min(action->rate_, NetworkModel::cfg_tcp_gamma / (2.0 * action->lat_current_)));
+          action->get_variable(),
+          std::min(action->get_user_bound(), NetworkModel::cfg_tcp_gamma / (2.0 * action->lat_current_)));
 
-      if (action->rate_ < NetworkModel::cfg_tcp_gamma / (2.0 * action->lat_current_)) {
+      if (action->get_user_bound() < NetworkModel::cfg_tcp_gamma / (2.0 * action->lat_current_)) {
         XBT_INFO("Flow is limited BYBANDWIDTH");
       } else {
         XBT_INFO("Flow is limited BYLATENCY, latency of flow is %f", action->lat_current_);

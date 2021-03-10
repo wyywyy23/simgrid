@@ -43,6 +43,9 @@ static std::string buff_size_to_string(size_t buff_size)
   return XBT_LOG_ISENABLED(Api, xbt_log_priority_verbose) ? std::to_string(buff_size) : "(verbose only)";
 }
 
+static void simcall_translate(smx_simcall_t req,
+                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& internal_comm);
+
 /* Search an enabled transition for the given process.
  *
  * This can be seen as an iterator returning the next transition of the process.
@@ -93,7 +96,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
           req = &actor->simcall_;
         break;
 
-      case Simcall::COMM_TESTANY: {
+      case Simcall::COMM_TESTANY:
         state->transition_.times_considered_ = -1;
         while (procstate->times_considered < simcall_comm_testany__get__count(&actor->simcall_)) {
           if (simgrid::mc::request_is_enabled_by_idx(&actor->simcall_, procstate->times_considered)) {
@@ -109,7 +112,6 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
         if (state->transition_.times_considered_ != -1)
           req = &actor->simcall_;
         break;
-      }
 
       case Simcall::COMM_WAIT: {
         simgrid::mc::RemotePtr<simgrid::kernel::activity::CommImpl> remote_act =
@@ -142,52 +144,56 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
   state->executed_req_    = *req;
   // Fetch the data of the request and translate it:
   state->internal_req_ = *req;
+  state->internal_req_.mc_value_ = state->transition_.times_considered_;
+  simcall_translate(&state->internal_req_, state->internal_comm_);
+
+  return req;
+}
+
+static void simcall_translate(smx_simcall_t req,
+                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& internal_comm)
+{
   simgrid::kernel::activity::CommImpl* chosen_comm;
-  simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> remote_comm;
 
   /* The waitany and testany request are transformed into a wait or test request over the corresponding communication
    * action so it can be treated later by the dependence function. */
   switch (req->call_) {
     case Simcall::COMM_WAITANY:
-      state->internal_req_.call_ = Simcall::COMM_WAIT;
-      chosen_comm                = mc_model_checker->get_remote_simulation().read(
-          remote(simcall_comm_waitany__get__comms(req) + state->transition_.times_considered_));
+      req->call_  = Simcall::COMM_WAIT;
+      chosen_comm = mc_model_checker->get_remote_simulation().read(
+          remote(simcall_comm_waitany__get__comms(req) + req->mc_value_));
 
-      mc_model_checker->get_remote_simulation().read(remote_comm, remote(chosen_comm));
-      simcall_comm_wait__set__comm(&state->internal_req_, remote_comm.get_buffer());
-      simcall_comm_wait__set__timeout(&state->internal_req_, 0);
+      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
+      simcall_comm_wait__set__comm(req, internal_comm.get_buffer());
+      simcall_comm_wait__set__timeout(req, 0);
       break;
 
     case Simcall::COMM_TESTANY:
-      state->internal_req_.call_ = Simcall::COMM_TEST;
-      chosen_comm                = mc_model_checker->get_remote_simulation().read(
-          remote(simcall_comm_testany__get__comms(req) + state->transition_.times_considered_));
+      req->call_  = Simcall::COMM_TEST;
+      chosen_comm = mc_model_checker->get_remote_simulation().read(
+          remote(simcall_comm_testany__get__comms(req) + req->mc_value_));
 
-      mc_model_checker->get_remote_simulation().read(remote_comm, remote(chosen_comm));
-      simcall_comm_test__set__comm(&state->internal_req_, remote_comm.get_buffer());
-      simcall_comm_test__set__result(&state->internal_req_, state->transition_.times_considered_);
+      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
+      simcall_comm_test__set__comm(req, internal_comm.get_buffer());
+      simcall_comm_test__set__result(req, req->mc_value_);
       break;
 
     case Simcall::COMM_WAIT:
       chosen_comm = simcall_comm_wait__getraw__comm(req);
-      mc_model_checker->get_remote_simulation().read(state->internal_comm_, remote(chosen_comm));
-      simcall_comm_wait__set__comm(&state->executed_req_, state->internal_comm_.get_buffer());
-      simcall_comm_wait__set__comm(&state->internal_req_, state->internal_comm_.get_buffer());
+      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
+      simcall_comm_wait__set__comm(req, internal_comm.get_buffer());
       break;
 
     case Simcall::COMM_TEST:
       chosen_comm = simcall_comm_test__getraw__comm(req);
-      mc_model_checker->get_remote_simulation().read(remote_comm, remote(chosen_comm));
-      simcall_comm_test__set__comm(&state->executed_req_, remote_comm.get_buffer());
-      simcall_comm_test__set__comm(&state->internal_req_, remote_comm.get_buffer());
+      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
+      simcall_comm_test__set__comm(req, internal_comm.get_buffer());
       break;
 
     default:
       /* No translation needed */
       break;
   }
-
-  return req;
 }
 
 simgrid::kernel::activity::CommImpl* Api::get_comm(smx_simcall_t const r) const
@@ -360,10 +366,13 @@ bool Api::actor_is_enabled(aid_t pid) const
 
 unsigned long Api::get_maxpid() const
 {
+  static const char* name = nullptr;
+  if (not name) {
+    name = "simgrid::kernel::actor::maxpid";
+    if (mc_model_checker->get_remote_simulation().find_variable(name) == nullptr)
+      name = "maxpid"; // We seem to miss the namespaces when compiling with GCC
+  }
   unsigned long maxpid;
-  const char* name = "simgrid::kernel::actor::maxpid";
-  if (mc_model_checker->get_remote_simulation().find_variable(name) == nullptr)
-    name = "maxpid"; // We seem to miss the namespaces when compiling with GCC
   mc_model_checker->get_remote_simulation().read_variable(name, &maxpid, sizeof(maxpid));
   return maxpid;
 }
@@ -699,22 +708,9 @@ bool Api::simcall_check_dependency(smx_simcall_t const req1, smx_simcall_t const
   }
 }
 
-std::string Api::request_to_string(smx_simcall_t req, int value, RequestType request_type) const
+std::string Api::request_to_string(smx_simcall_t req, int value) const
 {
   xbt_assert(mc_model_checker != nullptr, "Must be called from MCer");
-
-  bool use_remote_comm = true;
-  switch (request_type) {
-    case simgrid::mc::RequestType::simix:
-      use_remote_comm = true;
-      break;
-    case simgrid::mc::RequestType::executed:
-    case simgrid::mc::RequestType::internal:
-      use_remote_comm = false;
-      break;
-    default:
-      THROW_IMPOSSIBLE;
-  }
 
   std::string type;
   std::string args;
@@ -755,11 +751,8 @@ std::string Api::request_to_string(smx_simcall_t req, int value, RequestType req
 
         simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_synchro;
         const simgrid::kernel::activity::CommImpl* act;
-        if (use_remote_comm) {
-          mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
-          act = temp_synchro.get_buffer();
-        } else
-          act = remote_act;
+        mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
+        act = temp_synchro.get_buffer();
 
         smx_actor_t src_proc =
             mc_model_checker->get_remote_simulation().resolve_actor(simgrid::mc::remote(act->src_actor_.get()));
@@ -775,11 +768,8 @@ std::string Api::request_to_string(smx_simcall_t req, int value, RequestType req
       simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_test__getraw__comm(req);
       simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_synchro;
       const simgrid::kernel::activity::CommImpl* act;
-      if (use_remote_comm) {
-        mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
-        act = temp_synchro.get_buffer();
-      } else
-        act = remote_act;
+      mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
+      act = temp_synchro.get_buffer();
 
       if (act->src_actor_.get() == nullptr || act->dst_actor_.get() == nullptr) {
         type = "Test FALSE";
@@ -819,29 +809,6 @@ std::string Api::request_to_string(smx_simcall_t req, int value, RequestType req
         args = xbt::string_printf("(%d of %zu)", value + 1, simcall_comm_testany__get__count(req));
       }
       break;
-
-    case Simcall::MUTEX_TRYLOCK:
-    case Simcall::MUTEX_LOCK: {
-      if (req->call_ == Simcall::MUTEX_LOCK)
-        type = "Mutex LOCK";
-      else
-        type = "Mutex TRYLOCK";
-
-      simgrid::mc::Remote<simgrid::kernel::activity::MutexImpl> mutex;
-      mc_model_checker->get_remote_simulation().read_bytes(mutex.get_buffer(), sizeof(mutex),
-                                                           remote(req->call_ == Simcall::MUTEX_LOCK
-                                                                      ? simcall_mutex_lock__get__mutex(req)
-                                                                      : simcall_mutex_trylock__get__mutex(req)));
-      args = "locked = " + std::to_string(mutex.get_buffer()->is_locked()) + ", owner = ";
-      if (mutex.get_buffer()->get_owner() != nullptr)
-        args += std::to_string(mc_model_checker->get_remote_simulation()
-                                   .resolve_actor(simgrid::mc::remote(mutex.get_buffer()->get_owner()))
-                                   ->get_pid());
-      else
-        args += "-1";
-      args += ", sleeping = n/a";
-      break;
-    }
 
     default:
       type = SIMIX_simcall_name(req->call_);
@@ -919,14 +886,6 @@ std::string Api::request_get_dot_output(smx_simcall_t req, int value) const
         }
         break;
 
-      case Simcall::MUTEX_TRYLOCK:
-        label = "[" + get_actor_dot_label(issuer) + "] Mutex TRYLOCK";
-        break;
-
-      case Simcall::MUTEX_LOCK:
-        label = "[" + get_actor_dot_label(issuer) + "] Mutex LOCK";
-        break;
-
       default:
         THROW_UNIMPLEMENTED;
     }
@@ -982,7 +941,7 @@ void Api::restore_initial_state() const
 void Api::execute(Transition& transition, smx_simcall_t simcall) const
 {
   /* FIXME: once all simcalls have observers, kill the simcall parameter and use mc_model_checker->simcall_to_string() */
-  transition.textual = request_to_string(simcall, transition.times_considered_, RequestType::executed);
+  transition.textual = request_to_string(simcall, transition.times_considered_);
   session->execute(transition);
 }
 

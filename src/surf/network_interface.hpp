@@ -111,7 +111,7 @@ class LinkImpl : public Resource_T<LinkImpl>, public xbt::PropertyHolder {
   s4u::Link piface_;
 
 protected:
-  LinkImpl(const std::string& name);
+  explicit LinkImpl(const std::string& name);
   LinkImpl(const LinkImpl&) = delete;
   LinkImpl& operator=(const LinkImpl&) = delete;
   ~LinkImpl() override                 = default; // Use destroy() instead of this destructor.
@@ -203,18 +203,13 @@ public:
   double latency_         = 0.; // Delay before the action starts
   double lat_current_     = 0.; // Used to compute the communication RTT, and accordingly limit the communication rate
   double sharing_penalty_ = {};
-  double rate_       = {};
+
   s4u::Host& get_src() const { return src_; }
   s4u::Host& get_dst() const { return dst_; }
 };
 } // namespace resource
 } // namespace kernel
 } // namespace simgrid
-
-/** @ingroup SURF_models
- *  @brief The network model
- */
-XBT_PUBLIC_DATA simgrid::kernel::resource::NetworkModel* surf_network_model;
 
 #endif /* SURF_NETWORK_INTERFACE_HPP_ */
 

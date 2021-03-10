@@ -21,7 +21,9 @@ Mutex::~Mutex()
 /** @brief Blocks the calling actor until the mutex can be obtained */
 void Mutex::lock()
 {
-  simcall_mutex_lock(pimpl_);
+  kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
+  mc::MutexLockSimcall observer{issuer, pimpl_};
+  kernel::actor::simcall_blocking<void>([&observer] { observer.get_mutex()->lock(observer.get_issuer()); }, &observer);
 }
 
 /** @brief Release the ownership of the mutex, unleashing a blocked actor (if any)
@@ -38,7 +40,10 @@ void Mutex::unlock()
 /** @brief Acquire the mutex if it's free, and return false (without blocking) if not */
 bool Mutex::try_lock()
 {
-  return simcall_mutex_trylock(pimpl_);
+  kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
+  mc::MutexLockSimcall observer{issuer, pimpl_, false};
+  return kernel::actor::simcall([&observer] { return observer.get_mutex()->try_lock(observer.get_issuer()); },
+                                &observer);
 }
 
 /** @brief Create a new mutex

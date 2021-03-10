@@ -3,10 +3,10 @@
 /* This program is free software; you can redistribute it and/or modify it
  * under the terms of the license (GNU LGPL) which comes with this package. */
 
+#include "src/surf/HostImpl.hpp"
 #include <cstdlib>
 #include <vector>
 #include <xbt/base.h>
-#include "src/surf/HostImpl.hpp"
 
 #ifndef HOST_L07_HPP_
 #define HOST_L07_HPP_
@@ -52,9 +52,13 @@ public:
   CpuL07Model(const CpuL07Model&) = delete;
   CpuL07Model& operator=(const CpuL07Model&) = delete;
   ~CpuL07Model() override;
+  /* this action is done by HostL07Model which shares the LMM system with the CPU model
+   * Overriding to an empty function here allows us to handle the Cpu07Model as a regular
+   * method in surf_presolve */
+  void update_actions_state(double now, double delta) override{};
 
   kernel::resource::Cpu* create_cpu(s4u::Host* host, const std::vector<double>& speed_per_pstate) override;
-  HostL07Model *hostModel_;
+  HostL07Model* hostModel_;
 };
 
 class NetworkL07Model : public kernel::resource::NetworkModel {
@@ -67,8 +71,12 @@ public:
                                           s4u::Link::SharingPolicy policy) override;
 
   kernel::resource::Action* communicate(s4u::Host* src, s4u::Host* dst, double size, double rate) override;
+  /* this action is done by HostL07Model which shares the LMM system with the CPU model
+   * Overriding to an empty function here allows us to handle the Cpu07Model as a regular
+   * method in surf_presolve */
+  void update_actions_state(double now, double delta) override{};
 
-  HostL07Model *hostModel_;
+  HostL07Model* hostModel_;
 };
 
 /************
@@ -78,7 +86,6 @@ public:
 class CpuL07 : public kernel::resource::Cpu {
 public:
   CpuL07(s4u::Host* host, const std::vector<double>& speed_per_pstate) : Cpu(host, speed_per_pstate){};
-  ~CpuL07()             = default;
   CpuL07(const CpuL07&) = delete;
   CpuL07& operator=(const CpuL07&) = delete;
 

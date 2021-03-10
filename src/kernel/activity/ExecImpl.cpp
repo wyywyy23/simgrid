@@ -3,10 +3,11 @@
 /* This program is free software; you can redistribute it and/or modify it
  * under the terms of the license (GNU LGPL) which comes with this package. */
 
-#include "simgrid/s4u/Exec.hpp"
 #include "src/kernel/activity/ExecImpl.hpp"
 #include "simgrid/Exception.hpp"
+#include "simgrid/kernel/routing/NetPoint.hpp"
 #include "simgrid/modelchecker.h"
+#include "simgrid/s4u/Exec.hpp"
 #include "src/mc/mc_replay.hpp"
 #include "src/surf/HostImpl.hpp"
 #include "src/surf/cpu_interface.hpp"
@@ -58,7 +59,7 @@ namespace activity {
 
 ExecImpl::ExecImpl()
 {
-  piface_ = new s4u::Exec(this);
+  piface_                = new s4u::Exec(this);
   actor::ActorImpl* self = actor::ActorImpl::self();
   if (self) {
     actor_ = self;
@@ -115,10 +116,14 @@ ExecImpl* ExecImpl::start()
       surf_action_->set_sharing_penalty(sharing_penalty_);
       surf_action_->set_category(get_tracing_category());
 
-      if (bound_ > 0)
+      if (bound_ > 0) {
         surf_action_->set_bound(bound_);
+        surf_action_->set_user_bound(bound_);
+      }
     } else {
-      surf_action_ = surf_host_model->execute_parallel(hosts_, flops_amounts_.data(), bytes_amounts_.data(), -1);
+      // FIXME[donassolo]: verify if all hosts belongs to the same netZone?
+      auto host_model = hosts_.front()->get_netpoint()->get_englobing_zone()->get_host_model();
+      surf_action_    = host_model->execute_parallel(hosts_, flops_amounts_.data(), bytes_amounts_.data(), -1);
     }
     surf_action_->set_activity(this);
   }
@@ -153,15 +158,20 @@ ExecImpl& ExecImpl::set_sharing_penalty(double sharing_penalty)
 void ExecImpl::post()
 {
   xbt_assert(surf_action_ != nullptr);
-  if (hosts_.size() == 1 && not hosts_.front()->is_on()) { /* FIXME: handle resource failure for parallel tasks too */
-    /* If the host running the synchro failed, notice it. This way, the asking
+  if (std::any_of(hosts_.begin(), hosts_.end(), [](const s4u::Host* host) { return not host->is_on(); })) {
+    /* If one of the hosts running the synchro failed, notice it. This way, the asking
      * process can be killed if it runs on that host itself */
     state_ = State::FAILED;
   } else if (surf_action_->get_state() == resource::Action::State::FAILED) {
-    /* If the host running the synchro didn't fail, then the synchro was canceled */
+    /* If all the hosts are running the synchro didn't fail, then the synchro was canceled */
     state_ = State::CANCELED;
   } else if (timeout_detector_ && timeout_detector_->get_state() == resource::Action::State::FINISHED) {
-    state_ = State::TIMEOUT;
+    if (surf_action_->get_remains() > 0.0) {
+      surf_action_->set_state(resource::Action::State::FAILED);
+      state_ = State::TIMEOUT;
+    } else {
+      state_ = State::DONE;
+    }
   } else {
     state_ = State::DONE;
   }
@@ -189,7 +199,7 @@ void ExecImpl::finish()
      * simcall */
 
     if (simcall->call_ == simix::Simcall::NONE) // FIXME: maybe a better way to handle this case
-      continue;                        // if process handling comm is killed
+      continue;                                 // if process handling comm is killed
     if (simcall->call_ == simix::Simcall::EXECUTION_WAITANY_FOR) {
       simgrid::kernel::activity::ExecImpl** execs = simcall_execution_waitany_for__get__execs(simcall);
       size_t count                                = simcall_execution_waitany_for__get__count(simcall);
@@ -260,9 +270,7 @@ ActivityImpl* ExecImpl::migrate(s4u::Host* to)
     new_action->set_remains(old_action->get_remains());
     new_action->set_activity(this);
     new_action->set_sharing_penalty(old_action->get_sharing_penalty());
-
-    // FIXME: the user-defined bound seem to not be kept by LMM, that seem to overwrite it for the multi-core modeling.
-    // I hope that the user did not provide any.
+    new_action->set_user_bound(old_action->get_user_bound());
 
     old_action->set_activity(nullptr);
     old_action->cancel();

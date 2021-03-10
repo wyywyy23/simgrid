@@ -120,8 +120,7 @@ void SafetyChecker::run()
 
     // If there are processes to interleave and the maximum depth has not been
     // reached then perform one step of the exploration algorithm.
-    XBT_DEBUG("Execute: %s",
-              api::get().request_to_string(req, state->transition_.times_considered_, RequestType::simix).c_str());
+    XBT_DEBUG("Execute: %s", api::get().request_to_string(req, state->transition_.times_considered_).c_str());
 
     std::string req_str;
     if (dot_output != nullptr)
@@ -186,40 +185,35 @@ void SafetyChecker::backtrack()
     std::unique_ptr<State> state = std::move(stack_.back());
     stack_.pop_back();
     if (reductionMode_ == ReductionMode::dpor) {
-      smx_simcall_t req = &state->internal_req_;
-      if (req->call_ == simix::Simcall::MUTEX_LOCK || req->call_ == simix::Simcall::MUTEX_TRYLOCK)
-        xbt_die("Mutex is currently not supported with DPOR,  use --cfg=model-check/reduction:none");
-
-      const kernel::actor::ActorImpl* issuer = api::get().simcall_get_issuer(req);
+      auto call = state->executed_req_.call_;
+      const kernel::actor::ActorImpl* issuer = api::get().simcall_get_issuer(&state->executed_req_);
       for (auto i = stack_.rbegin(); i != stack_.rend(); ++i) {
         State* prev_state = i->get();
-        if (api::get().simcall_check_dependency(req, &prev_state->internal_req_)) {
+        if (state->executed_req_.issuer_ == prev_state->executed_req_.issuer_) {
+          XBT_DEBUG("Simcall %s and %s with same issuer", SIMIX_simcall_name(call),
+                    SIMIX_simcall_name(prev_state->executed_req_.call_));
+          break;
+        } else if (api::get().simcall_check_dependency(&state->internal_req_, &prev_state->internal_req_)) {
           if (XBT_LOG_ISENABLED(mc_safety, xbt_log_priority_debug)) {
             XBT_DEBUG("Dependent Transitions:");
             int value              = prev_state->transition_.times_considered_;
             smx_simcall_t prev_req = &prev_state->executed_req_;
-            XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value, RequestType::internal).c_str(),
-                      prev_state->num_);
+            XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value).c_str(), prev_state->num_);
             value    = state->transition_.times_considered_;
             prev_req = &state->executed_req_;
-            XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value, RequestType::executed).c_str(),
-                      state->num_);
+            XBT_DEBUG("%s (state=%d)", api::get().request_to_string(prev_req, value).c_str(), state->num_);
           }
 
           if (not prev_state->actor_states_[issuer->get_pid()].is_done())
             prev_state->mark_todo(issuer);
           else
-            XBT_DEBUG("Process %p is in done set", req->issuer_);
-          break;
-        } else if (req->issuer_ == prev_state->internal_req_.issuer_) {
-          XBT_DEBUG("Simcall %s and %s with same issuer", SIMIX_simcall_name(req->call_),
-                    SIMIX_simcall_name(prev_state->internal_req_.call_));
+            XBT_DEBUG("Actor %s %ld is in done set", issuer->get_cname(), issuer->get_pid());
           break;
         } else {
-          const kernel::actor::ActorImpl* previous_issuer = api::get().simcall_get_issuer(&prev_state->internal_req_);
+          const kernel::actor::ActorImpl* previous_issuer = api::get().simcall_get_issuer(&prev_state->executed_req_);
           XBT_DEBUG("Simcall %s, process %ld (state %d) and simcall %s, process %ld (state %d) are independent",
-                    SIMIX_simcall_name(req->call_), issuer->get_pid(), state->num_,
-                    SIMIX_simcall_name(prev_state->internal_req_.call_), previous_issuer->get_pid(), prev_state->num_);
+                    SIMIX_simcall_name(call), issuer->get_pid(), state->num_,
+                    SIMIX_simcall_name(prev_state->executed_req_.call_), previous_issuer->get_pid(), prev_state->num_);
         }
       }
     }

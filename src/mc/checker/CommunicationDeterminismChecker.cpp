@@ -59,7 +59,8 @@ static void restore_communications_pattern(simgrid::mc::State* state)
   for (size_t i = 0; i < initial_communications_pattern.size(); i++)
     initial_communications_pattern[i].index_comm = state->communication_indices_[i];
 
-  for (unsigned long i = 0; i < api::get().get_maxpid(); i++)
+  const unsigned long maxpid = api::get().get_maxpid();
+  for (unsigned long i = 0; i < maxpid; i++)
     patterns_copy(incomplete_communications_pattern[i], state->incomplete_comm_pattern_[i]);
 }
 
@@ -271,7 +272,7 @@ std::vector<std::string> CommunicationDeterminismChecker::get_textual_trace() //
   std::vector<std::string> trace;
   for (auto const& state : stack_) {
     smx_simcall_t req = &state->executed_req_;
-    trace.push_back(api::get().request_to_string(req, state->transition_.times_considered_, RequestType::executed));
+    trace.push_back(api::get().request_to_string(req, state->transition_.times_considered_));
   }
   return trace;
 }
@@ -302,7 +303,7 @@ void CommunicationDeterminismChecker::log_state() // override
 
 void CommunicationDeterminismChecker::prepare()
 {
-  const auto maxpid = api::get().get_maxpid();
+  const unsigned long maxpid = api::get().get_maxpid();
 
   initial_communications_pattern.resize(maxpid);
   incomplete_communications_pattern.resize(maxpid);
@@ -323,7 +324,7 @@ void CommunicationDeterminismChecker::prepare()
 
 static inline bool all_communications_are_finished()
 {
-  auto maxpid = api::get().get_maxpid();
+  const unsigned long maxpid = api::get().get_maxpid();
   for (size_t current_actor = 1; current_actor < maxpid; current_actor++) {
     if (not incomplete_communications_pattern[current_actor].empty()) {
       XBT_DEBUG("Some communications are not finished, cannot stop the exploration! State not visited.");
@@ -346,10 +347,10 @@ void CommunicationDeterminismChecker::restoreState()
   /* Restore the initial state */
   api::get().restore_initial_state();
 
-  unsigned long n = api::get().get_maxpid();
-  assert(n == incomplete_communications_pattern.size());
-  assert(n == initial_communications_pattern.size());
-  for (unsigned long j = 0; j < n; j++) {
+  const unsigned long maxpid = api::get().get_maxpid();
+  assert(maxpid == incomplete_communications_pattern.size());
+  assert(maxpid == initial_communications_pattern.size());
+  for (unsigned long j = 0; j < maxpid; j++) {
     incomplete_communications_pattern[j].clear();
     initial_communications_pattern[j].index_comm = 0;
   }
@@ -430,7 +431,7 @@ void CommunicationDeterminismChecker::real_run()
     if (req != nullptr && visited_state == nullptr) {
       int req_num = cur_state->transition_.times_considered_;
 
-      XBT_DEBUG("Execute: %s", api::get().request_to_string(req, req_num, RequestType::simix).c_str());
+      XBT_DEBUG("Execute: %s", api::get().request_to_string(req, req_num).c_str());
 
       std::string req_str;
       if (dot_output != nullptr)

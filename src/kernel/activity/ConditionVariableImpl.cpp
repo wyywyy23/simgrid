@@ -55,7 +55,7 @@ void ConditionVariableImpl::signal()
       simcall_mutex = simcall_cond_wait__get__mutex(simcall);
     else
       simcall_mutex = simcall_cond_wait_timeout__get__mutex(simcall);
-    simcall->call_ = simix::Simcall::MUTEX_LOCK;
+    simcall->call_ = simix::Simcall::RUN_BLOCKING;
 
     simcall_mutex->lock(simcall->issuer_);
   }
@@ -90,7 +90,11 @@ void ConditionVariableImpl::wait(smx_mutex_t mutex, double timeout, actor::Actor
     mutex->unlock(issuer);
   }
 
-  RawImplPtr synchro(new RawImpl());
+  RawImplPtr synchro(new RawImpl([this, issuer]() {
+    this->remove_sleeping_actor(*issuer);
+    if (issuer->simcall_.call_ == simix::Simcall::COND_WAIT_TIMEOUT)
+      simcall_cond_wait_timeout__set__result(&issuer->simcall_, 1);
+  }));
   synchro->set_host(issuer->get_host()).set_timeout(timeout).start();
   synchro->register_simcall(&issuer->simcall_);
   sleeping_.push_back(*issuer);
