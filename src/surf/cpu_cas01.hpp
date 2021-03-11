@@ -30,7 +30,6 @@ public:
   explicit CpuCas01Model(Model::UpdateAlgo algo);
   CpuCas01Model(const CpuCas01Model&) = delete;
   CpuCas01Model& operator=(const CpuCas01Model&) = delete;
-  ~CpuCas01Model() = default;
 
   Cpu* create_cpu(s4u::Host* host, const std::vector<double>& speed_per_pstate) override;
 };
@@ -41,7 +40,7 @@ public:
 
 class CpuCas01 : public Cpu {
 public:
-  CpuCas01(s4u::Host* host, const std::vector<double>& speed_per_pstate) : Cpu(host, speed_per_pstate) {}
+  using Cpu::Cpu;
   CpuCas01(const CpuCas01&) = delete;
   CpuCas01& operator=(const CpuCas01&) = delete;
   void apply_event(profile::Event* event, double value) override;
@@ -67,7 +66,6 @@ public:
                  int requested_core = 1);
   CpuCas01Action(const CpuCas01Action&) = delete;
   CpuCas01Action& operator=(const CpuCas01Action&) = delete;
-  ~CpuCas01Action() = default;
   int requested_core() const;
 
 private:
