@@ -44,7 +44,7 @@ static std::string buff_size_to_string(size_t buff_size)
 }
 
 static void simcall_translate(smx_simcall_t req,
-                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& internal_comm);
+                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& buffered_comm);
 
 /* Search an enabled transition for the given process.
  *
@@ -115,7 +115,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
 
       case Simcall::COMM_WAIT: {
         simgrid::mc::RemotePtr<simgrid::kernel::activity::CommImpl> remote_act =
-            remote(simcall_comm_wait__getraw__comm(&actor->simcall_));
+            remote(simcall_comm_wait__get__comm(&actor->simcall_));
         simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_act;
         mc_model_checker->get_remote_simulation().read(temp_act, remote_act);
         const simgrid::kernel::activity::CommImpl* act = temp_act.get_buffer();
@@ -142,6 +142,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
 
   state->transition_.pid_ = actor->get_pid();
   state->executed_req_    = *req;
+
   // Fetch the data of the request and translate it:
   state->internal_req_ = *req;
   state->internal_req_.mc_value_ = state->transition_.times_considered_;
@@ -151,7 +152,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(simgrid::mc::Sta
 }
 
 static void simcall_translate(smx_simcall_t req,
-                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& internal_comm)
+                              simgrid::mc::Remote<simgrid::kernel::activity::CommImpl>& buffered_comm)
 {
   simgrid::kernel::activity::CommImpl* chosen_comm;
 
@@ -163,8 +164,8 @@ static void simcall_translate(smx_simcall_t req,
       chosen_comm = mc_model_checker->get_remote_simulation().read(
           remote(simcall_comm_waitany__get__comms(req) + req->mc_value_));
 
-      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
-      simcall_comm_wait__set__comm(req, internal_comm.get_buffer());
+      mc_model_checker->get_remote_simulation().read(buffered_comm, remote(chosen_comm));
+      simcall_comm_wait__set__comm(req, buffered_comm.get_buffer());
       simcall_comm_wait__set__timeout(req, 0);
       break;
 
@@ -173,21 +174,21 @@ static void simcall_translate(smx_simcall_t req,
       chosen_comm = mc_model_checker->get_remote_simulation().read(
           remote(simcall_comm_testany__get__comms(req) + req->mc_value_));
 
-      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
-      simcall_comm_test__set__comm(req, internal_comm.get_buffer());
+      mc_model_checker->get_remote_simulation().read(buffered_comm, remote(chosen_comm));
+      simcall_comm_test__set__comm(req, buffered_comm.get_buffer());
       simcall_comm_test__set__result(req, req->mc_value_);
       break;
 
     case Simcall::COMM_WAIT:
-      chosen_comm = simcall_comm_wait__getraw__comm(req);
-      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
-      simcall_comm_wait__set__comm(req, internal_comm.get_buffer());
+      chosen_comm = simcall_comm_wait__get__comm(req);
+      mc_model_checker->get_remote_simulation().read(buffered_comm, remote(chosen_comm));
+      simcall_comm_wait__set__comm(req, buffered_comm.get_buffer());
       break;
 
     case Simcall::COMM_TEST:
-      chosen_comm = simcall_comm_test__getraw__comm(req);
-      mc_model_checker->get_remote_simulation().read(internal_comm, remote(chosen_comm));
-      simcall_comm_test__set__comm(req, internal_comm.get_buffer());
+      chosen_comm = simcall_comm_test__get__comm(req);
+      mc_model_checker->get_remote_simulation().read(buffered_comm, remote(chosen_comm));
+      simcall_comm_test__set__comm(req, buffered_comm.get_buffer());
       break;
 
     default:
@@ -196,16 +197,13 @@ static void simcall_translate(smx_simcall_t req,
   }
 }
 
-simgrid::kernel::activity::CommImpl* Api::get_comm(smx_simcall_t const r) const
+simgrid::kernel::activity::CommImpl* Api::get_comm_or_nullptr(smx_simcall_t const r) const
 {
-  switch (r->call_) {
-    case Simcall::COMM_WAIT:
-      return simcall_comm_wait__getraw__comm(r);
-    case Simcall::COMM_TEST:
-      return simcall_comm_test__getraw__comm(r);
-    default:
-      return nullptr;
-  }
+  if (r->call_ == Simcall::COMM_WAIT)
+    return simcall_comm_wait__get__comm(r);
+  if (r->call_ == Simcall::COMM_TEST)
+    return simcall_comm_test__get__comm(r);
+  return nullptr;
 }
 
 /** Statically "upcast" a s_smx_actor_t into an ActorInformation
@@ -223,66 +221,110 @@ simgrid::mc::ActorInformation* Api::actor_info_cast(smx_actor_t actor) const
   return process_info;
 }
 
-// Does half the job
-bool Api::request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const
+bool Api::simcall_check_dependency(smx_simcall_t req1, smx_simcall_t req2) const
 {
-  if (r1->call_ == Simcall::COMM_ISEND && r2->call_ == Simcall::COMM_IRECV)
+  const auto IRECV = Simcall::COMM_IRECV;
+  const auto ISEND = Simcall::COMM_ISEND;
+  const auto TEST  = Simcall::COMM_TEST;
+  const auto WAIT  = Simcall::COMM_WAIT;
+
+  if (req1->issuer_ == req2->issuer_)
     return false;
 
-  if (r1->call_ == Simcall::COMM_IRECV && r2->call_ == Simcall::COMM_ISEND)
-    return false;
+  /* The independence theorem only consider 4 simcalls. All others are dependent with anything. */
+  if (req1->call_ != ISEND && req1->call_ != IRECV && req1->call_ != TEST && req1->call_ != WAIT)
+    return true;
+  if (req2->call_ != ISEND && req2->call_ != IRECV && req2->call_ != TEST && req2->call_ != WAIT)
+    return true;
 
-  // Those are internal requests, we do not need indirection because those objects are copies:
-  const kernel::activity::CommImpl* acti1 = get_comm(r1);
-  const kernel::activity::CommImpl* acti2 = get_comm(r2);
+  /* Timeouts in wait transitions are not considered by the independence theorem, thus assumed dependent */
+  if ((req1->call_ == WAIT && simcall_comm_wait__get__timeout(req1) > 0) ||
+      (req2->call_ == WAIT && simcall_comm_wait__get__timeout(req2) > 0))
+    return true;
 
-  if ((r1->call_ == Simcall::COMM_ISEND || r1->call_ == Simcall::COMM_IRECV) && r2->call_ == Simcall::COMM_WAIT) {
-    auto mbox1 = get_mbox_remote_addr(r1);
-    auto mbox2 = remote(acti2->mbox_cpy);
-
-    if (mbox1 != mbox2 && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->issuer_ != acti2->src_actor_.get()) && (r1->issuer_ != acti2->dst_actor_.get()) &&
-        simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->call_ == Simcall::COMM_ISEND) && (acti2->type_ == kernel::activity::CommImpl::Type::SEND) &&
-        (acti2->src_buff_ != simcall_comm_isend__get__src_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
-
-    if ((r1->call_ == Simcall::COMM_IRECV) && (acti2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
-        (acti2->dst_buff_ != simcall_comm_irecv__get__dst_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
-      return false;
+  /* Make sure that req1 and req2 are in alphabetic order */
+  if (req1->call_ > req2->call_) {
+    auto temp = req1;
+    req1      = req2;
+    req2      = temp;
   }
 
-  /* FIXME: the following rule assumes that the result of the isend/irecv call is not stored in a buffer used in the
-   * test call. */
+  auto comm1 = get_comm_or_nullptr(req1);
+  auto comm2 = get_comm_or_nullptr(req2);
+
+  /* First case: that's not the same kind of request (we also know that req1 < req2 alphabetically) */
+  if (req1->call_ != req2->call_) {
+    if (req1->call_ == IRECV && req2->call_ == ISEND)
+      return false;
+
+    if ((req1->call_ == IRECV || req1->call_ == ISEND) && req2->call_ == WAIT) {
+      auto mbox1 = get_mbox_remote_addr(req1);
+      auto mbox2 = remote(comm2->mbox_cpy);
+
+      if (mbox1 != mbox2 && simcall_comm_wait__get__timeout(req2) <= 0)
+        return false;
+
+      if ((req1->issuer_ != comm2->src_actor_.get()) && (req1->issuer_ != comm2->dst_actor_.get()) &&
+          simcall_comm_wait__get__timeout(req2) <= 0)
+        return false;
+
+      if ((req1->call_ == ISEND) && (comm2->type_ == kernel::activity::CommImpl::Type::SEND) &&
+          (comm2->src_buff_ != simcall_comm_isend__get__src_buff(req1)) && simcall_comm_wait__get__timeout(req2) <= 0)
+        return false;
+
+      if ((req1->call_ == IRECV) && (comm2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
+          (comm2->dst_buff_ != simcall_comm_irecv__get__dst_buff(req1)) && simcall_comm_wait__get__timeout(req2) <= 0)
+        return false;
+    }
+
+    /* FIXME: the following rule assumes that the result of the isend/irecv call is not stored in a buffer used in the
+     * test call. */
 #if 0
-  if((r1->call == Simcall::COMM_ISEND || r1->call == Simcall::COMM_IRECV)
-      &&  r2->call == Simcall::COMM_TEST)
+  if((req1->call == ISEND || req1->call == IRECV)
+      &&  req2->call == TEST)
     return false;
 #endif
 
-  if (r1->call_ == Simcall::COMM_WAIT && (r2->call_ == Simcall::COMM_WAIT || r2->call_ == Simcall::COMM_TEST) &&
-      (acti1->src_actor_.get() == nullptr || acti1->dst_actor_.get() == nullptr))
-    return false;
+    if (req1->call_ == TEST && req2->call_ == WAIT &&
+        (comm1->src_actor_.get() == nullptr || comm1->dst_actor_.get() == nullptr))
+      return false;
 
-  if (r1->call_ == Simcall::COMM_TEST &&
-      (simcall_comm_test__get__comm(r1) == nullptr || acti1->src_buff_ == nullptr || acti1->dst_buff_ == nullptr))
-    return false;
+    if (req1->call_ == TEST &&
+        (simcall_comm_test__get__comm(req1) == nullptr || comm1->src_buff_ == nullptr || comm1->dst_buff_ == nullptr))
+      return false;
+    if (req2->call_ == TEST &&
+        (simcall_comm_test__get__comm(req2) == nullptr || comm2->src_buff_ == nullptr || comm2->dst_buff_ == nullptr))
+      return false;
 
-  if (r1->call_ == Simcall::COMM_TEST && r2->call_ == Simcall::COMM_WAIT && acti1->src_buff_ == acti2->src_buff_ &&
-      acti1->dst_buff_ == acti2->dst_buff_)
-    return false;
+    if (req1->call_ == TEST && req2->call_ == WAIT && comm1->src_buff_ == comm2->src_buff_ &&
+        comm1->dst_buff_ == comm2->dst_buff_)
+      return false;
 
-  if (r1->call_ == Simcall::COMM_WAIT && r2->call_ == Simcall::COMM_TEST && acti1->src_buff_ != nullptr &&
-      acti1->dst_buff_ != nullptr && acti2->src_buff_ != nullptr && acti2->dst_buff_ != nullptr &&
-      acti1->dst_buff_ != acti2->src_buff_ && acti1->dst_buff_ != acti2->dst_buff_ &&
-      acti2->dst_buff_ != acti1->src_buff_)
-    return false;
+    if (req1->call_ == TEST && req2->call_ == WAIT && comm1->src_buff_ != nullptr && comm1->dst_buff_ != nullptr &&
+        comm2->src_buff_ != nullptr && comm2->dst_buff_ != nullptr && comm1->dst_buff_ != comm2->src_buff_ &&
+        comm1->dst_buff_ != comm2->dst_buff_ && comm2->dst_buff_ != comm1->src_buff_)
+      return false;
 
-  return true;
+    return true;
+  }
+
+  /* Second case: req1 and req2 are of the same call type */
+  switch (req1->call_) {
+    case ISEND:
+      return simcall_comm_isend__get__mbox(req1) == simcall_comm_isend__get__mbox(req2);
+    case IRECV:
+      return simcall_comm_irecv__get__mbox(req1) == simcall_comm_irecv__get__mbox(req2);
+    case WAIT:
+      if (comm1->src_buff_ == comm2->src_buff_ && comm1->dst_buff_ == comm2->dst_buff_)
+        return false;
+      if (comm1->src_buff_ != nullptr && comm1->dst_buff_ != nullptr && comm2->src_buff_ != nullptr &&
+          comm2->dst_buff_ != nullptr && comm1->dst_buff_ != comm2->src_buff_ && comm1->dst_buff_ != comm2->dst_buff_ &&
+          comm2->dst_buff_ != comm1->src_buff_)
+        return false;
+      return true;
+    default:
+      return true;
+  }
 }
 
 xbt::string const& Api::get_actor_host_name(smx_actor_t actor) const
@@ -309,10 +351,10 @@ std::string Api::get_actor_name(smx_actor_t actor) const
   if (mc_model_checker == nullptr)
     return actor->get_cname();
 
-  const simgrid::mc::RemoteSimulation* process = &mc_model_checker->get_remote_simulation();
-
   simgrid::mc::ActorInformation* info = actor_info_cast(actor);
   if (info->name.empty()) {
+    const simgrid::mc::RemoteSimulation* process = &mc_model_checker->get_remote_simulation();
+
     simgrid::xbt::string_data string_data = simgrid::xbt::string::to_string_data(actor->name_);
     info->name = process->read_string(remote(string_data.data), string_data.len);
   }
@@ -385,11 +427,6 @@ int Api::get_actors_size() const
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_isend_raw_addr(smx_simcall_t request) const
 {
   return remote(static_cast<kernel::activity::CommImpl*>(simcall_comm_isend__getraw__result(request)));
-}
-
-RemotePtr<kernel::activity::CommImpl> Api::get_comm_wait_raw_addr(smx_simcall_t request) const
-{
-  return remote(simcall_comm_wait__getraw__comm(request));
 }
 
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_waitany_raw_addr(smx_simcall_t request, int value) const
@@ -652,42 +689,6 @@ std::list<transition_detail_t> Api::get_enabled_transitions(simgrid::mc::State* 
   return tr_list;
 }
 
-bool Api::simcall_check_dependency(smx_simcall_t const req1, smx_simcall_t const req2) const
-{
-  if (req1->issuer_ == req2->issuer_)
-    return false;
-
-  /* Wait with timeout transitions are not considered by the independence theorem, thus we consider them as dependent
-   * with all other transitions */
-  if ((req1->call_ == Simcall::COMM_WAIT && simcall_comm_wait__get__timeout(req1) > 0) ||
-      (req2->call_ == Simcall::COMM_WAIT && simcall_comm_wait__get__timeout(req2) > 0))
-    return true;
-
-  if (req1->call_ != req2->call_)
-    return request_depend_asymmetric(req1, req2) && request_depend_asymmetric(req2, req1);
-
-  // Those are internal requests, we do not need indirection because those objects are copies:
-  const kernel::activity::CommImpl* activity1 = get_comm(req1);
-  const kernel::activity::CommImpl* activity2 = get_comm(req2);
-
-  switch (req1->call_) {
-    case Simcall::COMM_ISEND:
-      return simcall_comm_isend__get__mbox(req1) == simcall_comm_isend__get__mbox(req2);
-    case Simcall::COMM_IRECV:
-      return simcall_comm_irecv__get__mbox(req1) == simcall_comm_irecv__get__mbox(req2);
-    case Simcall::COMM_WAIT:
-      if (activity1->src_buff_ == activity2->src_buff_ && activity1->dst_buff_ == activity2->dst_buff_)
-        return false;
-      if (activity1->src_buff_ != nullptr && activity1->dst_buff_ != nullptr && activity2->src_buff_ != nullptr &&
-          activity2->dst_buff_ != nullptr && activity1->dst_buff_ != activity2->src_buff_ &&
-          activity1->dst_buff_ != activity2->dst_buff_ && activity2->dst_buff_ != activity1->src_buff_)
-        return false;
-      return true;
-    default:
-      return true;
-  }
-}
-
 std::string Api::request_to_string(smx_simcall_t req, int value) const
 {
   xbt_assert(mc_model_checker != nullptr, "Must be called from MCer");
@@ -722,7 +723,7 @@ std::string Api::request_to_string(smx_simcall_t req, int value) const
     }
 
     case Simcall::COMM_WAIT: {
-      simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_wait__getraw__comm(req);
+      simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_wait__get__comm(req);
       if (value == -1) {
         type = "WaitTimeout";
         args = "comm=" + pointer_to_string(remote_act);
@@ -745,7 +746,7 @@ std::string Api::request_to_string(smx_simcall_t req, int value) const
     }
 
     case Simcall::COMM_TEST: {
-      simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_test__getraw__comm(req);
+      simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_test__get__comm(req);
       simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_activity;
       const simgrid::kernel::activity::CommImpl* act;
       mc_model_checker->get_remote_simulation().read(temp_activity, remote(remote_act));
@@ -822,7 +823,7 @@ std::string Api::request_get_dot_output(smx_simcall_t req, int value) const
         if (value == -1) {
           label = "[" + get_actor_dot_label(issuer) + "] WaitTimeout";
         } else {
-          kernel::activity::ActivityImpl* remote_act = simcall_comm_wait__getraw__comm(req);
+          kernel::activity::ActivityImpl* remote_act = simcall_comm_wait__get__comm(req);
           Remote<kernel::activity::CommImpl> temp_comm;
           mc_model_checker->get_remote_simulation().read(temp_comm,
                                                          remote(static_cast<kernel::activity::CommImpl*>(remote_act)));
@@ -839,7 +840,7 @@ std::string Api::request_get_dot_output(smx_simcall_t req, int value) const
         break;
 
       case Simcall::COMM_TEST: {
-        kernel::activity::ActivityImpl* remote_act = simcall_comm_test__getraw__comm(req);
+        kernel::activity::ActivityImpl* remote_act = simcall_comm_test__get__comm(req);
         Remote<simgrid::kernel::activity::CommImpl> temp_comm;
         mc_model_checker->get_remote_simulation().read(temp_comm,
                                                        remote(static_cast<kernel::activity::CommImpl*>(remote_act)));

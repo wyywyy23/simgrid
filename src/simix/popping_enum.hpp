@@ -22,22 +22,20 @@ namespace simix {
 enum class Simcall {
   NONE,
   EXECUTION_WAITANY_FOR,
-  COMM_SEND,
-  COMM_ISEND,
   COMM_RECV,
   COMM_IRECV,
-  COMM_WAITANY,
-  COMM_WAIT,
+  COMM_SEND,
+  COMM_ISEND,
   COMM_TEST,
   COMM_TESTANY,
-  COND_WAIT,
+  COMM_WAITANY,
+  COMM_WAIT,
   COND_WAIT_TIMEOUT,
-  SEM_ACQUIRE,
   SEM_ACQUIRE_TIMEOUT,
   RUN_KERNEL,
   RUN_BLOCKING,
 };
 
-constexpr int NUM_SIMCALLS = 16;
+constexpr int NUM_SIMCALLS = 14;
 } // namespace simix
 } // namespace simgrid

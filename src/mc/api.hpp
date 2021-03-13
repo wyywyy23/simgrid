@@ -46,7 +46,7 @@ private:
     }
   };
 
-  simgrid::kernel::activity::CommImpl* get_comm(smx_simcall_t const r) const;
+  simgrid::kernel::activity::CommImpl* get_comm_or_nullptr(smx_simcall_t const r) const;
   bool request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const;
   simgrid::mc::ActorInformation* actor_info_cast(smx_actor_t actor) const;
   std::string get_actor_name(smx_actor_t actor) const;
@@ -74,7 +74,6 @@ public:
 
   // COMMUNICATION APIs
   RemotePtr<kernel::activity::CommImpl> get_comm_isend_raw_addr(smx_simcall_t request) const;
-  RemotePtr<kernel::activity::CommImpl> get_comm_wait_raw_addr(smx_simcall_t request) const;
   RemotePtr<kernel::activity::CommImpl> get_comm_waitany_raw_addr(smx_simcall_t request, int value) const;
   std::string get_pattern_comm_rdv(RemotePtr<kernel::activity::CommImpl> const& addr) const;
   unsigned long get_pattern_comm_src_proc(RemotePtr<kernel::activity::CommImpl> const& addr) const;
