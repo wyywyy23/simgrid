@@ -233,26 +233,26 @@ bool Api::request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const
     return false;
 
   // Those are internal requests, we do not need indirection because those objects are copies:
-  const kernel::activity::CommImpl* synchro1 = get_comm(r1);
-  const kernel::activity::CommImpl* synchro2 = get_comm(r2);
+  const kernel::activity::CommImpl* acti1 = get_comm(r1);
+  const kernel::activity::CommImpl* acti2 = get_comm(r2);
 
   if ((r1->call_ == Simcall::COMM_ISEND || r1->call_ == Simcall::COMM_IRECV) && r2->call_ == Simcall::COMM_WAIT) {
-    auto mbox                                                  = get_mbox_remote_addr(r1);
-    RemotePtr<kernel::activity::MailboxImpl> synchro2_mbox_cpy = remote(synchro2->mbox_cpy);
+    auto mbox1 = get_mbox_remote_addr(r1);
+    auto mbox2 = remote(acti2->mbox_cpy);
 
-    if (mbox != synchro2_mbox_cpy && simcall_comm_wait__get__timeout(r2) <= 0)
+    if (mbox1 != mbox2 && simcall_comm_wait__get__timeout(r2) <= 0)
       return false;
 
-    if ((r1->issuer_ != synchro2->src_actor_.get()) && (r1->issuer_ != synchro2->dst_actor_.get()) &&
+    if ((r1->issuer_ != acti2->src_actor_.get()) && (r1->issuer_ != acti2->dst_actor_.get()) &&
         simcall_comm_wait__get__timeout(r2) <= 0)
       return false;
 
-    if ((r1->call_ == Simcall::COMM_ISEND) && (synchro2->type_ == kernel::activity::CommImpl::Type::SEND) &&
-        (synchro2->src_buff_ != simcall_comm_isend__get__src_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
+    if ((r1->call_ == Simcall::COMM_ISEND) && (acti2->type_ == kernel::activity::CommImpl::Type::SEND) &&
+        (acti2->src_buff_ != simcall_comm_isend__get__src_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
       return false;
 
-    if ((r1->call_ == Simcall::COMM_IRECV) && (synchro2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
-        (synchro2->dst_buff_ != simcall_comm_irecv__get__dst_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
+    if ((r1->call_ == Simcall::COMM_IRECV) && (acti2->type_ == kernel::activity::CommImpl::Type::RECEIVE) &&
+        (acti2->dst_buff_ != simcall_comm_irecv__get__dst_buff(r1)) && simcall_comm_wait__get__timeout(r2) <= 0)
       return false;
   }
 
@@ -265,21 +265,21 @@ bool Api::request_depend_asymmetric(smx_simcall_t r1, smx_simcall_t r2) const
 #endif
 
   if (r1->call_ == Simcall::COMM_WAIT && (r2->call_ == Simcall::COMM_WAIT || r2->call_ == Simcall::COMM_TEST) &&
-      (synchro1->src_actor_.get() == nullptr || synchro1->dst_actor_.get() == nullptr))
+      (acti1->src_actor_.get() == nullptr || acti1->dst_actor_.get() == nullptr))
     return false;
 
   if (r1->call_ == Simcall::COMM_TEST &&
-      (simcall_comm_test__get__comm(r1) == nullptr || synchro1->src_buff_ == nullptr || synchro1->dst_buff_ == nullptr))
+      (simcall_comm_test__get__comm(r1) == nullptr || acti1->src_buff_ == nullptr || acti1->dst_buff_ == nullptr))
     return false;
 
-  if (r1->call_ == Simcall::COMM_TEST && r2->call_ == Simcall::COMM_WAIT &&
-      synchro1->src_buff_ == synchro2->src_buff_ && synchro1->dst_buff_ == synchro2->dst_buff_)
+  if (r1->call_ == Simcall::COMM_TEST && r2->call_ == Simcall::COMM_WAIT && acti1->src_buff_ == acti2->src_buff_ &&
+      acti1->dst_buff_ == acti2->dst_buff_)
     return false;
 
-  if (r1->call_ == Simcall::COMM_WAIT && r2->call_ == Simcall::COMM_TEST && synchro1->src_buff_ != nullptr &&
-      synchro1->dst_buff_ != nullptr && synchro2->src_buff_ != nullptr && synchro2->dst_buff_ != nullptr &&
-      synchro1->dst_buff_ != synchro2->src_buff_ && synchro1->dst_buff_ != synchro2->dst_buff_ &&
-      synchro2->dst_buff_ != synchro1->src_buff_)
+  if (r1->call_ == Simcall::COMM_WAIT && r2->call_ == Simcall::COMM_TEST && acti1->src_buff_ != nullptr &&
+      acti1->dst_buff_ != nullptr && acti2->src_buff_ != nullptr && acti2->dst_buff_ != nullptr &&
+      acti1->dst_buff_ != acti2->src_buff_ && acti1->dst_buff_ != acti2->dst_buff_ &&
+      acti2->dst_buff_ != acti1->src_buff_)
     return false;
 
   return true;
@@ -384,58 +384,50 @@ int Api::get_actors_size() const
 
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_isend_raw_addr(smx_simcall_t request) const
 {
-  auto comm_addr = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::ActivityImpl*>(request->result_);
-  return RemotePtr<kernel::activity::CommImpl>(static_cast<kernel::activity::CommImpl*>(comm_addr));
-}
-
-RemotePtr<kernel::activity::CommImpl> Api::get_comm_irecv_raw_addr(smx_simcall_t request) const
-{
-  auto comm_addr = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::ActivityImpl*>(request->result_);
-  return RemotePtr<kernel::activity::CommImpl>(static_cast<kernel::activity::CommImpl*>(comm_addr));
+  return remote(static_cast<kernel::activity::CommImpl*>(simcall_comm_isend__getraw__result(request)));
 }
 
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_wait_raw_addr(smx_simcall_t request) const
 {
-  auto comm_addr = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::CommImpl*>(request->args_[0]);
-  return RemotePtr<kernel::activity::CommImpl>(comm_addr);
+  return remote(simcall_comm_wait__getraw__comm(request));
 }
 
 RemotePtr<kernel::activity::CommImpl> Api::get_comm_waitany_raw_addr(smx_simcall_t request, int value) const
 {
-  auto addr      = simgrid::simix::unmarshal_raw<simgrid::kernel::activity::CommImpl**>(request->args_[0]) + value;
+  auto addr      = simcall_comm_waitany__getraw__comms(request) + value;
   auto comm_addr = mc_model_checker->get_remote_simulation().read(remote(addr));
   return RemotePtr<kernel::activity::CommImpl>(static_cast<kernel::activity::CommImpl*>(comm_addr));
 }
 
 std::string Api::get_pattern_comm_rdv(RemotePtr<kernel::activity::CommImpl> const& addr) const
 {
-  Remote<kernel::activity::CommImpl> temp_synchro;
-  mc_model_checker->get_remote_simulation().read(temp_synchro, addr);
-  const kernel::activity::CommImpl* synchro = temp_synchro.get_buffer();
+  Remote<kernel::activity::CommImpl> temp_activity;
+  mc_model_checker->get_remote_simulation().read(temp_activity, addr);
+  const kernel::activity::CommImpl* activity = temp_activity.get_buffer();
 
   char* remote_name = mc_model_checker->get_remote_simulation().read<char*>(RemotePtr<char*>(
-      (uint64_t)(synchro->get_mailbox() ? &synchro->get_mailbox()->get_name() : &synchro->mbox_cpy->get_name())));
+      (uint64_t)(activity->get_mailbox() ? &activity->get_mailbox()->get_name() : &activity->mbox_cpy->get_name())));
   auto rdv          = mc_model_checker->get_remote_simulation().read_string(RemotePtr<char>(remote_name));
   return rdv;
 }
 
 unsigned long Api::get_pattern_comm_src_proc(RemotePtr<kernel::activity::CommImpl> const& addr) const
 {
-  Remote<kernel::activity::CommImpl> temp_synchro;
-  mc_model_checker->get_remote_simulation().read(temp_synchro, addr);
-  const kernel::activity::CommImpl* synchro = temp_synchro.get_buffer();
+  Remote<kernel::activity::CommImpl> temp_activity;
+  mc_model_checker->get_remote_simulation().read(temp_activity, addr);
+  const kernel::activity::CommImpl* activity = temp_activity.get_buffer();
   auto src_proc =
-      mc_model_checker->get_remote_simulation().resolve_actor(mc::remote(synchro->src_actor_.get()))->get_pid();
+      mc_model_checker->get_remote_simulation().resolve_actor(mc::remote(activity->src_actor_.get()))->get_pid();
   return src_proc;
 }
 
 unsigned long Api::get_pattern_comm_dst_proc(RemotePtr<kernel::activity::CommImpl> const& addr) const
 {
-  Remote<kernel::activity::CommImpl> temp_synchro;
-  mc_model_checker->get_remote_simulation().read(temp_synchro, addr);
-  const kernel::activity::CommImpl* synchro = temp_synchro.get_buffer();
+  Remote<kernel::activity::CommImpl> temp_activity;
+  mc_model_checker->get_remote_simulation().read(temp_activity, addr);
+  const kernel::activity::CommImpl* activity = temp_activity.get_buffer();
   auto src_proc =
-      mc_model_checker->get_remote_simulation().resolve_actor(mc::remote(synchro->dst_actor_.get()))->get_pid();
+      mc_model_checker->get_remote_simulation().resolve_actor(mc::remote(activity->dst_actor_.get()))->get_pid();
   return src_proc;
 }
 
@@ -557,32 +549,20 @@ long Api::simcall_get_actor_id(s_smx_simcall const* req) const
 
 RemotePtr<kernel::activity::MailboxImpl> Api::get_mbox_remote_addr(smx_simcall_t const req) const
 {
-  RemotePtr<kernel::activity::MailboxImpl> mbox_addr;
-  switch (req->call_) {
-    case Simcall::COMM_ISEND:
-    case Simcall::COMM_IRECV:
-      mbox_addr = remote(simix::unmarshal<smx_mailbox_t>(req->args_[1]));
-      break;
-    default:
-      mbox_addr = RemotePtr<kernel::activity::MailboxImpl>();
-      break;
-  }
-  return mbox_addr;
+  if (req->call_ == Simcall::COMM_ISEND)
+    return remote(simcall_comm_isend__get__mbox(req));
+  if (req->call_ == Simcall::COMM_IRECV)
+    return remote(simcall_comm_irecv__get__mbox(req));
+  THROW_IMPOSSIBLE;
 }
 
 RemotePtr<kernel::activity::ActivityImpl> Api::get_comm_remote_addr(smx_simcall_t const req) const
 {
-  RemotePtr<kernel::activity::ActivityImpl> comm_addr;
-  switch (req->call_) {
-    case Simcall::COMM_ISEND:
-    case Simcall::COMM_IRECV:
-      comm_addr = remote(simgrid::simix::unmarshal_raw<simgrid::kernel::activity::ActivityImpl*>(req->result_));
-      break;
-    default:
-      comm_addr = RemotePtr<kernel::activity::ActivityImpl>();
-      break;
-  }
-  return comm_addr;
+  if (req->call_ == Simcall::COMM_ISEND)
+    return remote(simcall_comm_isend__getraw__result(req));
+  if (req->call_ == Simcall::COMM_IRECV)
+    return remote(simcall_comm_irecv__getraw__result(req));
+  THROW_IMPOSSIBLE;
 }
 
 bool Api::mc_is_null() const
@@ -687,8 +667,8 @@ bool Api::simcall_check_dependency(smx_simcall_t const req1, smx_simcall_t const
     return request_depend_asymmetric(req1, req2) && request_depend_asymmetric(req2, req1);
 
   // Those are internal requests, we do not need indirection because those objects are copies:
-  const kernel::activity::CommImpl* synchro1 = get_comm(req1);
-  const kernel::activity::CommImpl* synchro2 = get_comm(req2);
+  const kernel::activity::CommImpl* activity1 = get_comm(req1);
+  const kernel::activity::CommImpl* activity2 = get_comm(req2);
 
   switch (req1->call_) {
     case Simcall::COMM_ISEND:
@@ -696,11 +676,11 @@ bool Api::simcall_check_dependency(smx_simcall_t const req1, smx_simcall_t const
     case Simcall::COMM_IRECV:
       return simcall_comm_irecv__get__mbox(req1) == simcall_comm_irecv__get__mbox(req2);
     case Simcall::COMM_WAIT:
-      if (synchro1->src_buff_ == synchro2->src_buff_ && synchro1->dst_buff_ == synchro2->dst_buff_)
+      if (activity1->src_buff_ == activity2->src_buff_ && activity1->dst_buff_ == activity2->dst_buff_)
         return false;
-      if (synchro1->src_buff_ != nullptr && synchro1->dst_buff_ != nullptr && synchro2->src_buff_ != nullptr &&
-          synchro2->dst_buff_ != nullptr && synchro1->dst_buff_ != synchro2->src_buff_ &&
-          synchro1->dst_buff_ != synchro2->dst_buff_ && synchro2->dst_buff_ != synchro1->src_buff_)
+      if (activity1->src_buff_ != nullptr && activity1->dst_buff_ != nullptr && activity2->src_buff_ != nullptr &&
+          activity2->dst_buff_ != nullptr && activity1->dst_buff_ != activity2->src_buff_ &&
+          activity1->dst_buff_ != activity2->dst_buff_ && activity2->dst_buff_ != activity1->src_buff_)
         return false;
       return true;
     default:
@@ -749,10 +729,10 @@ std::string Api::request_to_string(smx_simcall_t req, int value) const
       } else {
         type = "Wait";
 
-        simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_synchro;
+        simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_activity;
         const simgrid::kernel::activity::CommImpl* act;
-        mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
-        act = temp_synchro.get_buffer();
+        mc_model_checker->get_remote_simulation().read(temp_activity, remote(remote_act));
+        act = temp_activity.get_buffer();
 
         smx_actor_t src_proc =
             mc_model_checker->get_remote_simulation().resolve_actor(simgrid::mc::remote(act->src_actor_.get()));
@@ -766,10 +746,10 @@ std::string Api::request_to_string(smx_simcall_t req, int value) const
 
     case Simcall::COMM_TEST: {
       simgrid::kernel::activity::CommImpl* remote_act = simcall_comm_test__getraw__comm(req);
-      simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_synchro;
+      simgrid::mc::Remote<simgrid::kernel::activity::CommImpl> temp_activity;
       const simgrid::kernel::activity::CommImpl* act;
-      mc_model_checker->get_remote_simulation().read(temp_synchro, remote(remote_act));
-      act = temp_synchro.get_buffer();
+      mc_model_checker->get_remote_simulation().read(temp_activity, remote(remote_act));
+      act = temp_activity.get_buffer();
 
       if (act->src_actor_.get() == nullptr || act->dst_actor_.get() == nullptr) {
         type = "Test FALSE";
