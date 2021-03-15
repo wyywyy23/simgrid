@@ -17,7 +17,7 @@
 #if SIMGRID_HAVE_MC
 #include "src/mc/ModelChecker.hpp"
 #include "src/mc/Session.hpp"
-#include "src/mc/remote/RemoteSimulation.hpp"
+#include "src/mc/remote/RemoteProcess.hpp"
 
 using simgrid::mc::remote;
 #endif
@@ -82,7 +82,7 @@ bool actor_is_enabled(smx_actor_t actor)
 #if SIMGRID_HAVE_MC
   // If in the MCer, ask the client app since it has all the data
   if (mc_model_checker != nullptr) {
-    return simgrid::mc::session->actor_is_enabled(actor->get_pid());
+    return simgrid::mc::session_singleton->actor_is_enabled(actor->get_pid());
   }
 #endif
 // #

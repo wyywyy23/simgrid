@@ -7,13 +7,14 @@
 #include "simgrid/forward.h"
 #include "src/mc/mc_forward.hpp"
 #include "src/mc/mc_record.hpp"
-#include "src/mc/mc_request.hpp"
 #include "src/mc/mc_state.hpp"
 #include "xbt/automaton.hpp"
 #include "xbt/base.h"
 
 namespace simgrid {
 namespace mc {
+
+XBT_DECLARE_ENUM_CLASS(CheckerAlgorithm, Safety, UDPOR, Liveness, CommDeterminism);
 
 /**
  * @brief Maintains the transition's information.
@@ -64,11 +65,10 @@ public:
     return api;
   }
 
-  void initialize(char** argv) const;
+  simgrid::mc::Checker* initialize(char** argv, simgrid::mc::CheckerAlgorithm algo) const;
 
   // ACTOR APIs
   std::vector<simgrid::mc::ActorInformation>& get_actors() const;
-  bool actor_is_enabled(aid_t pid) const;
   unsigned long get_maxpid() const;
   int get_actors_size() const;
 
@@ -97,7 +97,6 @@ public:
   void mc_check_deadlock() const;
   bool mc_is_null() const;
   Checker* mc_get_checker() const;
-  void set_checker(Checker* const checker) const;
   void handle_simcall(Transition const& transition) const;
   void mc_wait_for_requests() const;
   XBT_ATTRIB_NORETURN void mc_exit(int status) const;
@@ -123,14 +122,12 @@ public:
   // STATE APIs
   void restore_state(std::shared_ptr<simgrid::mc::Snapshot> system_state) const;
   void log_state() const;
-  void restore_initial_state() const;
 
   // SNAPSHOT APIs
   bool snapshot_equal(const Snapshot* s1, const Snapshot* s2) const;
   simgrid::mc::Snapshot* take_snapshot(int num_state) const;
 
   // SESSION APIs
-  void session_initialize() const;
   void s_close() const;
   void execute(Transition& transition, smx_simcall_t simcall) const;
 

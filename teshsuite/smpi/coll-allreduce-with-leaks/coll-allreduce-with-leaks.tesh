@@ -2,7 +2,7 @@
 ! output sort
 
 p Test allreduce
-$ ${bindir:=.}/../../../smpi_script/bin/smpirun -map -hostfile ../hostfile_coll -platform ${platfdir:=.}/small_platform.xml -np 16 --log=xbt_cfg.thres:critical ${bindir:=.}/coll-allreduce --log=smpi_config.thres:warning --log=smpi_coll.thres:error --log=smpi_mpi.thres:error --log=smpi_pmpi.thres:error
+$ $VALGRIND_NO_LEAK_CHECK ${bindir:=.}/../../../smpi_script/bin/smpirun -map -hostfile ../hostfile_coll -platform  ${platfdir:=.}/small_platform.xml -np 16 --log=xbt_cfg.thres:critical ${bindir:=.}/coll-allreduce-with-leaks --log=smpi_config.thres:warning --cfg=smpi/display-analysis:yes --cfg=smpi/simulate-computation:no --log=smpi_coll.thres:error --log=smpi_mpi.thres:error --log=smpi_pmpi.thres:error
 > [rank 0] -> Tremblay
 > [rank 1] -> Tremblay
 > [rank 2] -> Tremblay
@@ -19,6 +19,12 @@ $ ${bindir:=.}/../../../smpi_script/bin/smpirun -map -hostfile ../hostfile_coll 
 > [rank 13] -> Ginette
 > [rank 14] -> Ginette
 > [rank 15] -> Ginette
+> If this is too much, consider sharing allocations for computation buffers.
+> Largest allocation at once from a single process was 64 bytes, at sysdep.h:87. It was called 32 times during the whole simulation.
+> Running smpirun with -wrapper "valgrind --leak-check=full" can provide more information
+> This can be done automatically by setting --cfg=smpi/auto-shared-malloc-thresh to the minimum size wanted size (this can alter execution if data content is necessary)
+> [0.023768] [smpi_utils/INFO] Probable memory leaks in your code: SMPI detected 31 unfreed MPI handles : display types and addresses (n max) with --cfg=smpi/list-leaks:n.
+> [0.023768] [smpi_utils/INFO] Memory Usage: Simulated application allocated 2048 bytes during its lifetime through malloc/calloc calls.
 > [0] sndbuf=[0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 ]
 > [1] sndbuf=[16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 ]
 > [2] sndbuf=[32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 ]
@@ -51,4 +57,5 @@ $ ${bindir:=.}/../../../smpi_script/bin/smpirun -map -hostfile ../hostfile_coll 
 > [13] rcvbuf=[1920 1936 1952 1968 1984 2000 2016 2032 2048 2064 2080 2096 2112 2128 2144 2160 ]
 > [14] rcvbuf=[1920 1936 1952 1968 1984 2000 2016 2032 2048 2064 2080 2096 2112 2128 2144 2160 ]
 > [15] rcvbuf=[1920 1936 1952 1968 1984 2000 2016 2032 2048 2064 2080 2096 2112 2128 2144 2160 ]
+> 
 

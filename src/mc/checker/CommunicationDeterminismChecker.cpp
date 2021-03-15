@@ -5,10 +5,10 @@
 
 #include "src/mc/checker/CommunicationDeterminismChecker.hpp"
 #include "src/kernel/activity/MailboxImpl.hpp"
+#include "src/mc/Session.hpp"
 #include "src/mc/mc_config.hpp"
 #include "src/mc/mc_exit.hpp"
 #include "src/mc/mc_private.hpp"
-#include "src/mc/mc_request.hpp"
 
 #include <cstdint>
 
@@ -255,7 +255,7 @@ void CommunicationDeterminismChecker::complete_comm_pattern(RemotePtr<kernel::ac
   }
 }
 
-CommunicationDeterminismChecker::CommunicationDeterminismChecker() : Checker() {}
+CommunicationDeterminismChecker::CommunicationDeterminismChecker(Session* session) : Checker(session) {}
 
 CommunicationDeterminismChecker::~CommunicationDeterminismChecker() = default;
 
@@ -313,11 +313,12 @@ void CommunicationDeterminismChecker::prepare()
 
   XBT_DEBUG("********* Start communication determinism verification *********");
 
-  /* Get an enabled actor and insert it in the interleave set of the initial state */
-  auto actors = api::get().get_actors();
-  for (auto& actor : actors)
-    if (api::get().actor_is_enabled(actor.copy.get_buffer()->get_pid()))
-      initial_state->mark_todo(actor.copy.get_buffer());
+  /* Add all enabled actors to the interleave set of the initial state */
+  for (auto& act : api::get().get_actors()) {
+    auto actor = act.copy.get_buffer();
+    if (get_session().actor_is_enabled(actor->get_pid()))
+      initial_state->mark_todo(actor);
+  }
 
   stack_.push_back(std::move(initial_state));
 }
@@ -344,8 +345,7 @@ void CommunicationDeterminismChecker::restoreState()
     return;
   }
 
-  /* Restore the initial state */
-  api::get().restore_initial_state();
+  get_session().restore_initial_state();
 
   const unsigned long maxpid = api::get().get_maxpid();
   assert(maxpid == incomplete_communications_pattern.size());
@@ -468,11 +468,12 @@ void CommunicationDeterminismChecker::real_run()
         visited_state = nullptr;
 
       if (visited_state == nullptr) {
-        /* Get enabled actors and insert them in the interleave set of the next state */
-        auto actors = api::get().get_actors();
-        for (auto& actor : actors)
-          if (api::get().actor_is_enabled(actor.copy.get_buffer()->get_pid()))
-            next_state->mark_todo(actor.copy.get_buffer());
+        /* Add all enabled actors to the interleave set of the next state */
+        for (auto& act : api::get().get_actors()) {
+          auto actor = act.copy.get_buffer();
+          if (get_session().actor_is_enabled(actor->get_pid()))
+            next_state->mark_todo(actor);
+        }
 
         if (dot_output != nullptr)
           fprintf(dot_output, "\"%d\" -> \"%d\" [%s];\n", cur_state->num_, next_state->num_, req_str.c_str());
@@ -527,15 +528,15 @@ void CommunicationDeterminismChecker::real_run()
 void CommunicationDeterminismChecker::run()
 {
   XBT_INFO("Check communication determinism");
-  api::get().session_initialize();
+  get_session().take_initial_snapshot();
 
   this->prepare();
   this->real_run();
 }
 
-Checker* createCommunicationDeterminismChecker()
+Checker* createCommunicationDeterminismChecker(Session* session)
 {
-  return new CommunicationDeterminismChecker();
+  return new CommunicationDeterminismChecker(session);
 }
 
 } // namespace mc

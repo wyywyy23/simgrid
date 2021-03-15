@@ -621,8 +621,8 @@ set(MC_SRC
   src/mc/remote/Channel.hpp
   src/mc/remote/CheckerSide.cpp
   src/mc/remote/CheckerSide.hpp
-  src/mc/remote/RemoteSimulation.hpp
-  src/mc/remote/RemoteSimulation.cpp
+  src/mc/remote/RemoteProcess.hpp
+  src/mc/remote/RemoteProcess.cpp
   src/mc/remote/RemotePtr.hpp
   src/mc/remote/mc_protocol.h
 
@@ -651,8 +651,6 @@ set(MC_SRC
   src/mc/mc_ignore.hpp
   src/mc/mc_record.cpp
   src/mc/mc_private.hpp
-  src/mc/mc_request.hpp
-  src/mc/mc_request.cpp
   src/mc/mc_safety.hpp
   src/mc/mc_state.hpp
   src/mc/mc_state.cpp
