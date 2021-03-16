@@ -46,12 +46,10 @@ XBT_PUBLIC void unblock(smx_actor_t process);
 template <class F> auto kernel_sync(F code) -> decltype(code().get())
 {
   using T = decltype(code().get());
-  if (SIMIX_is_maestro())
-    xbt_die("Can't execute blocking call in kernel mode");
+  xbt_assert(not SIMIX_is_maestro(), "Cannot execute blocking call in kernel mode");
 
   smx_actor_t self = SIMIX_process_self();
   simgrid::xbt::Result<T> result;
-
   simcall_run_blocking(
       [&result, self, &code] {
         try {
@@ -70,11 +68,12 @@ template <class F> auto kernel_sync(F code) -> decltype(code().get())
 }
 
 /** A blocking (`wait()`-based) future for SIMIX processes */
-// TODO, .wait_for
-// TODO, .wait_until
-// TODO, SharedFuture
-// TODO, simgrid::simix::when_all - wait for all future to be ready (this one is simple!)
-// TODO, simgrid::simix::when_any - wait for any future to be ready
+// TODO:
+// - .wait_for
+// - .wait_until
+// - SharedFuture
+// - simgrid::simix::when_all - wait for all future to be ready (this one is simple!)
+// - simgrid::simix::when_any - wait for any future to be ready
 template <class T>
 class Future {
 public:

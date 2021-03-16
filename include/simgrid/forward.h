@@ -116,6 +116,9 @@ namespace activity {
   XBT_PUBLIC void intrusive_ptr_release(ActivityImpl* activity);
 
   class ConditionVariableImpl;
+  using ConditionVariableImplPtr = boost::intrusive_ptr<ConditionVariableImpl>;
+  XBT_PUBLIC void intrusive_ptr_add_ref(ConditionVariableImpl* cond);
+  XBT_PUBLIC void intrusive_ptr_release(ConditionVariableImpl* cond);
 
   class CommImpl;
   using CommImplPtr = boost::intrusive_ptr<CommImpl>;
@@ -125,10 +128,14 @@ namespace activity {
   using IoImplPtr = boost::intrusive_ptr<IoImpl>;
   class MutexImpl;
   using MutexImplPtr = boost::intrusive_ptr<MutexImpl>;
+  XBT_PUBLIC void intrusive_ptr_add_ref(MutexImpl* mutex);
+  XBT_PUBLIC void intrusive_ptr_release(MutexImpl* mutex);
   class RawImpl;
   using RawImplPtr = boost::intrusive_ptr<RawImpl>;
   class SemaphoreImpl;
   using SemaphoreImplPtr = boost::intrusive_ptr<SemaphoreImpl>;
+  XBT_PUBLIC void intrusive_ptr_add_ref(SemaphoreImpl* sem);
+  XBT_PUBLIC void intrusive_ptr_release(SemaphoreImpl* sem);
   class SleepImpl;
   using SleepImplPtr = boost::intrusive_ptr<SleepImpl>;
 
