@@ -301,10 +301,10 @@ void simcall_cond_wait(smx_cond_t cond, smx_mutex_t mutex) // XBT_ATTRIB_DEPRECA
  * @ingroup simix_synchro_management
  *
  */
-int simcall_cond_wait_timeout(smx_cond_t cond, smx_mutex_t mutex, double timeout)
+int simcall_cond_wait_timeout(smx_cond_t cond, smx_mutex_t mutex, double timeout) // XBT_ATTRIB_DEPRECATD_v331
 {
-  xbt_assert(std::isfinite(timeout), "timeout is not finite!");
-  return simcall_BODY_cond_wait_timeout(cond, mutex, timeout);
+  return cond->get_iface()->wait_for(std::unique_lock<simgrid::s4u::Mutex>(mutex->mutex()), timeout) ==
+         std::cv_status::timeout;
 }
 
 /**
@@ -320,10 +320,9 @@ void simcall_sem_acquire(smx_sem_t sem) // XBT_ATTRIB_DEPRECATD_v331
  * @ingroup simix_synchro_management
  *
  */
-int simcall_sem_acquire_timeout(smx_sem_t sem, double timeout)
+int simcall_sem_acquire_timeout(smx_sem_t sem, double timeout) // XBT_ATTRIB_DEPRECATD_v331
 {
-  xbt_assert(std::isfinite(timeout), "timeout is not finite!");
-  return simcall_BODY_sem_acquire_timeout(sem, timeout);
+  return sem->sem().acquire_timeout(timeout);
 }
 
 simgrid::kernel::activity::State simcall_io_wait(simgrid::kernel::activity::ActivityImpl* io,
@@ -352,16 +351,16 @@ bool simcall_io_test(const simgrid::kernel::activity::ActivityImplPtr& io) // XB
   return simgrid::kernel::actor::simcall([io] { return io->test(); });
 }
 
-void simcall_run_kernel(std::function<void()> const& code, simgrid::mc::SimcallObserver* t)
+void simcall_run_kernel(std::function<void()> const& code, simgrid::mc::SimcallObserver* observer)
 {
-  simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = t;
+  simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = observer;
   simcall_BODY_run_kernel(&code);
   simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = nullptr;
 }
 
-void simcall_run_blocking(std::function<void()> const& code, simgrid::mc::SimcallObserver* t)
+void simcall_run_blocking(std::function<void()> const& code, simgrid::mc::SimcallObserver* observer)
 {
-  simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = t;
+  simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = observer;
   simcall_BODY_run_blocking(&code);
   simgrid::kernel::actor::ActorImpl::self()->simcall_.observer_ = nullptr;
 }
