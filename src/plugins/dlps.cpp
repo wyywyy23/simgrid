@@ -23,7 +23,7 @@ namespace plugin {
 
 xbt::Extension<s4u::Link, DLPS> DLPS::EXTENSION_ID;
 
-DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false)
+DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false), idle_threshold_laser_(dlps_idle_threshold_laser), idle_threshold_tuning_(dlps_idle_threshold_tuning)
 {
   XBT_DEBUG("Instantiating a DLPS for link '%s'", link_->get_cname());
 }
@@ -97,31 +97,41 @@ void DLPS::update_on_comm_start(double actual_start_time)
   // Update cumulated energy
   double current_instantaneous_power = 0.0;
   double energy_since_last_update    = 0.0;
-  if (last_updated_ < 0 && dlps_mode == "none") {
-    current_instantaneous_power = data_rate_to_power(link_->get_bandwidth());
-    energy_since_last_update    = now * current_instantaneous_power;
-  } else if (link_->get_num_active_actions_at(now) == 1 && now > last_updated_) {
-    if (dlps_mode == "full") {
-      double ready_time = std::min(duration_since_last_update, dlps_idle_threshold_laser);
-      double standby_time = std::max(std::min(duration_since_last_update, dlps_idle_threshold_tuning) - dlps_idle_threshold_laser, 0.0);
-      energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
-                               + standby_time * data_rate_to_power(0.0, false);
+
+  if (last_updated_ < 0) { // if it is the first communication, "on-off" and "full" will be OFF before this
+    if (dlps_mode == "none") {
+      current_instantaneous_power = data_rate_to_power(link_->get_bandwidth() * sg_bandwidth_factor);
+      energy_since_last_update    = now * current_instantaneous_power;
     } else if (dlps_mode == "laser") {
-      double ready_time = std::min(duration_since_last_update, dlps_idle_threshold_laser);
-      double standby_time = std::max(duration_since_last_update - dlps_idle_threshold_laser, 0.0);
-      energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
-                               + standby_time * data_rate_to_power(0.0, false);
-    } else if (dlps_mode == "on-off") {
-      
+      current_instantaneous_power = data_rate_to_power(0.0, false);
+      energy_since_last_update    = now * current_instantaneous_power;
     } else {
-      current_instantaneous_power = data_rate_to_power(link_->get_bandwidth());
+      // no power consumption before the first communication
+    }
+  } else { // last_updated_ >= 0
+    if (link_->get_num_active_actions_at(now) == 1 && now > last_updated_) { // The first of several consecutive start, compute the energy after last end
+      if (dlps_mode == "full") {
+        double ready_time = std::min(duration_since_last_update, idle_threshold_laser_);
+        double standby_time = std::max(std::min(duration_since_last_update, idle_threshold_tuning_) - idle_threshold_laser_, 0.0);
+        energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
+                               + standby_time * data_rate_to_power(0.0, false);
+      } else if (dlps_mode == "laser") {
+        double ready_time = std::min(duration_since_last_update, idle_threshold_laser_);
+        double standby_time = std::max(duration_since_last_update - idle_threshold_laser_, 0.0);
+        energy_since_last_update = ready_time * data_rate_to_power(0.0, true)
+                               + standby_time * data_rate_to_power(0.0, false);
+      } else if (dlps_mode == "on-off") {
+        // no energy after last end
+      } else {
+        current_instantaneous_power = data_rate_to_power(link_->get_bandwidth() * sg_bandwidth_factor);
+        energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
+      }
+    } else { // Not the first of several consecutive start
+      current_instantaneous_power = data_rate_to_power(
+        (dlps_mode == "full" || dlps_mode == "laser" || dlps_mode == "on-off") ?
+        current_instantaneous_bytes_per_second : link_->get_bandwidth() * sg_bandwidth_factor);
       energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
     }
-  } else {
-    current_instantaneous_power = data_rate_to_power(
-        (dlps_mode == "full" || dlps_mode == "laser" || dlps_mode == "on-off") ?
-        current_instantaneous_bytes_per_second : link_->get_bandwidth());
-    energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
   }
 
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
@@ -174,7 +184,7 @@ void DLPS::update_on_comm_end(double actual_start_time)
   duration_since_last_update         = now - last_updated_;
   double current_instantaneous_power = data_rate_to_power(
       (dlps_mode == "full" || dlps_mode == "laser" || dlps_mode == "on-off") ?
-      current_instantaneous_bytes_per_second : link_->get_bandwidth());
+      current_instantaneous_bytes_per_second : link_->get_bandwidth() * sg_bandwidth_factor);
   double energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
             duration_since_last_update);
@@ -197,6 +207,16 @@ bool DLPS::is_enabled() const
 double DLPS::get_last_updated()
 {
   return last_updated_;
+}
+
+double DLPS::get_idle_threshold_laser()
+{
+  return idle_threshold_laser_;
+}
+
+double DLPS::get_idle_threshold_tuning()
+{
+  return idle_threshold_tuning_;
 }
 
 double DLPS::get_cumulated_bytes()
@@ -263,12 +283,12 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
           if (link->get_iface()->get_num_active_actions_at(surf_get_clock()) == 0) {
             if (dlps_mode == "full") {
               link->get_iface()->set_next_ready(now);
-              link->get_iface()->set_next_standby(now + dlps_idle_threshold_laser);
-              link->get_iface()->set_next_off(now + dlps_idle_threshold_tuning);
+              link->get_iface()->set_next_standby(now + dlps->get_idle_threshold_laser());
+              link->get_iface()->set_next_off(now + dlps->get_idle_threshold_tuning());
             }
             else if (dlps_mode == "laser") {
               link->get_iface()->set_next_ready(now);
-              link->get_iface()->set_next_standby(now + dlps_idle_threshold_laser);
+              link->get_iface()->set_next_standby(now + dlps->get_idle_threshold_tuning());
             } else if (dlps_mode == "on-off") {
               link->get_iface()->set_next_off(now);
             }

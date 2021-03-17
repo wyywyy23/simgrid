@@ -300,7 +300,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     }
     extra_latency = std::max(extra_latency, this_latency);
     link->get_iface()->add_active_action_at(action->get_last_update());
-    link->get_iface()->set_next_on(dlps_mode == "none" ? 0.0 : action->get_last_update() + this_latency);
+    link->get_iface()->set_next_on(dlps_mode == "none" ? action->get_last_update() : action->get_last_update() + this_latency);
   }
   action->latency_ += extra_latency; // DLPS latency
   action->set_actual_start_time(action->get_last_update() + extra_latency);

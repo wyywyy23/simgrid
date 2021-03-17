@@ -29,6 +29,8 @@ public:
   bool is_enabled() const;
   s4u::Link* get_s4u_link();
   double get_last_updated();
+  double get_idle_threshold_laser();
+  double get_idle_threshold_tuning();
   double get_average_bytes();
   double get_cumulated_bytes();
   double get_cumulated_energy();
@@ -45,6 +47,9 @@ private:
   double max_bytes_per_second_{0.0}; /*< Maximum instantaneous load observed since last reset*/
   double last_reset_{-1.0};          /*< Timestamp of the last reset (init timestamp by default)*/
   double last_updated_{-1.0};        /*< Timestamp of the last update event*/
+
+  double idle_threshold_laser_{0.0};  /*< Idle threshold laser for the managed link*/
+  double idle_threshold_tuning_{0.0}; /*< Idle threshold tuning for the managed link*/
 
   double data_rate_to_power(double rate, bool tuning_on = true); /*< Compute power from data rate*/
 };
