@@ -14,6 +14,7 @@
 #include <xbt/Extendable.hpp>
 #include <xbt/base.h>
 #include <xbt/signal.hpp>
+#include <boost/circular_buffer.hpp>
 
 /***********
  * Classes *
@@ -33,7 +34,7 @@ class XBT_PUBLIC Link : public xbt::Extendable<Link> {
   friend kernel::resource::LinkImpl;
 
   // Links are created from the NetZone, and destroyed by their private implementation when the simulation ends
-  explicit Link(kernel::resource::LinkImpl* pimpl) : pimpl_(pimpl) {}
+  explicit Link(kernel::resource::LinkImpl* pimpl) : pimpl_(pimpl), interval_recorder(2) {}
   virtual ~Link() = default;
   // The private implementation, that never changes
   kernel::resource::LinkImpl* const pimpl_;
@@ -118,6 +119,8 @@ public:
   double last_busy_ = -1.0;
   void set_last_busy(double time) { last_busy_ = time; }
   double get_last_busy() const { return last_busy_; }
+
+  boost::circular_buffer<double> interval_recorder;
 
   /** Keep track of active actions using this link */
   std::map<double, unsigned long> active_actions;

@@ -23,7 +23,7 @@ namespace plugin {
 
 xbt::Extension<s4u::Link, DLPS> DLPS::EXTENSION_ID;
 
-DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false), idle_threshold_laser_(dlps_idle_threshold_laser), idle_threshold_tuning_(dlps_idle_threshold_tuning)
+DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false)
 {
   XBT_DEBUG("Instantiating a DLPS for link '%s'", link_->get_cname());
 }
@@ -137,6 +137,23 @@ void DLPS::update_on_comm_start(double actual_start_time)
   XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
             duration_since_last_update);
   cumulated_energy_ += energy_since_last_update;
+
+  // Update idle thresholds based on values in the circular buffer
+  if (dlps_mode == "full" || dlps_mode == "laser") {
+    
+    idle_threshold_laser_ = link_->interval_recorder[0] > dlps_idle_threshold_laser && link_->interval_recorder[1] > dlps_idle_threshold_laser ? 0.0 : (
+                             link_->interval_recorder[0] > idle_threshold_laser_ && link_->interval_recorder[1] > idle_threshold_laser_ ? link_->interval_recorder[1] : (
+                             link_->interval_recorder[0] < idle_threshold_laser_ && link_->interval_recorder[1] < idle_threshold_laser_ ? link_->interval_recorder[1] : idle_threshold_laser_));
+
+    if (dlps_mode == "full") {
+      idle_threshold_tuning_ = link_->interval_recorder[0] > dlps_idle_threshold_tuning && link_->interval_recorder[1] > dlps_idle_threshold_tuning ? idle_threshold_laser_ : (
+                               link_->interval_recorder[0] > idle_threshold_tuning_ && link_->interval_recorder[1] > idle_threshold_tuning_ ? link_->interval_recorder[1] : (
+                               link_->interval_recorder[0] < idle_threshold_tuning_ && link_->interval_recorder[1] < idle_threshold_tuning_ ? std::max(link_->interval_recorder[1], idle_threshold_laser_) : idle_threshold_tuning_));
+
+      if (idle_threshold_tuning_ < idle_threshold_laser_)
+	idle_threshold_tuning_ = idle_threshold_laser_;
+    }
+  }
 
   last_updated_ = now;
   XBT_INFO("%s,communicate,%.17f,%f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_bandwidth());

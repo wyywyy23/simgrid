@@ -279,6 +279,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::OFF : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+      if (link->get_iface()->get_last_busy() > 0)
+        link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
     } else if (action->get_last_update() - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) { // Medium idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
@@ -287,6 +289,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
     } else if (action->get_last_update() - link->get_iface()->get_last_busy() > 0) { // Short idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_waking : (
                       dlps_mode == "laser" ? dlps_delay_laser_waking : (
@@ -295,6 +298,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::READY : (
                       dlps_mode == "laser" ? s4u::Link::State::READY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
+      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
     } else {
       link->get_iface()->set_last_state(s4u::Link::State::ON);
     }
