@@ -14,9 +14,6 @@ int main(int argc, char *argv[])
 {
   int rank;
   int size;
-  int i;
-  int status;
-  int mult=1;
 
   MPI_Init(&argc, &argv);
   int maxlen = argc >= 2 ? atoi(argv[1]) : 1;
@@ -27,26 +24,15 @@ int main(int argc, char *argv[])
   MPI_Comm_size(MPI_COMM_WORLD, &size);
   MPI_Comm_set_errhandler(dup, MPI_ERRORS_RETURN);
 
-  if (maxlen > 1)
-    mult = maxlen > size ? size : maxlen;
   int* sb = xbt_new0(int, size * maxlen);
   int* rb = xbt_new0(int, size * maxlen);
 
-  for (i = 0; i < size *maxlen; ++i) {
+  for (int i = 0; i < size * maxlen; ++i) {
     sb[i] = rank*size + i;
     rb[i] = 0;
   }
 
-  printf("[%d] sndbuf=[", rank);
-  for (i = 0; i < size *mult; i++)
-    printf("%d ", sb[i]);
-  printf("]\n");
-  status = MPI_Allreduce(sb, rb, size *maxlen, MPI_INT, MPI_SUM, dup);
-
-  printf("[%d] rcvbuf=[", rank);
-  for (i =  0; i < size *mult; i++)//do not print everything
-    printf("%d ", rb[i]);
-  printf("]\n");
+  int status = MPI_Allreduce(sb, rb, size * maxlen, MPI_INT, MPI_SUM, dup);
 
   if (rank == 0 && status != MPI_SUCCESS) {
     printf("all_to_all returned %d\n", status);

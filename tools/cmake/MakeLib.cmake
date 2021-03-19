@@ -35,7 +35,7 @@ if(enable_model-checking)
                APPEND PROPERTY INCLUDE_DIRECTORIES "${INTERNAL_INCLUDES}")
   install(TARGETS simgrid-mc # install that binary without breaking the rpath on Mac
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/)
-  add_dependencies(tests simgrid-mc)
+  add_dependencies(tests-mc simgrid-mc)
 endif()
 
 
