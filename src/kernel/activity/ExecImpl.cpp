@@ -16,8 +16,6 @@
 
 #include "simgrid/s4u/Host.hpp"
 
-#include <boost/range/algorithm.hpp>
-
 XBT_LOG_EXTERNAL_DEFAULT_CATEGORY(simix_process);
 
 namespace simgrid {
@@ -167,14 +165,11 @@ void ExecImpl::finish()
 
     if (simcall->call_ == simix::Simcall::NONE) // FIXME: maybe a better way to handle this case
       continue;                                 // if process handling comm is killed
-    if (const auto* observer = dynamic_cast<mc::ExecutionWaitanySimcall*>(simcall->observer_)) {
+    if (auto* observer = dynamic_cast<mc::ExecutionWaitanySimcall*>(simcall->observer_)) { // simcall is a wait_any?
       const auto* execs = observer->get_execs();
 
       for (auto* exec : *execs) {
-        // Remove the first occurrence of simcall:
-        auto j = boost::range::find(exec->simcalls_, simcall);
-        if (j != exec->simcalls_.end())
-          exec->simcalls_.erase(j);
+        exec->unregister_simcall(simcall);
 
         if (simcall->timeout_cb_) {
           simcall->timeout_cb_->remove();
@@ -185,7 +180,7 @@ void ExecImpl::finish()
       if (not MC_is_active() && not MC_record_replay_is_active()) {
         auto element = std::find(execs->begin(), execs->end(), this);
         int rank     = element != execs->end() ? static_cast<int>(std::distance(execs->begin(), element)) : -1;
-        simix::marshal<int>(simcall->result_, rank);
+        observer->set_result(rank);
       }
     }
     switch (state_) {
@@ -254,13 +249,9 @@ void ExecImpl::wait_any_for(actor::ActorImpl* issuer, const std::vector<ExecImpl
   } else {
     issuer->simcall_.timeout_cb_ = simgrid::simix::Timer::set(SIMIX_get_clock() + timeout, [issuer, execs]() {
       issuer->simcall_.timeout_cb_ = nullptr;
-      for (auto* exec : *execs) {
-        // Remove the first occurrence of simcall:
-        auto j = boost::range::find(exec->simcalls_, &issuer->simcall_);
-        if (j != exec->simcalls_.end())
-          exec->simcalls_.erase(j);
-      }
-      simix::marshal<int>(issuer->simcall_.result_, -1);
+      for (auto* exec : *execs)
+        exec->unregister_simcall(&issuer->simcall_);
+      // default result (-1) is set in mc::ExecutionWaitanySimcall
       issuer->simcall_answer();
     });
   }
