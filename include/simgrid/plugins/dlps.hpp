@@ -27,6 +27,7 @@ public:
 
   /// Getter methods.
   bool is_enabled() const;
+  std::string get_dlps_mode() const;
   s4u::Link* get_s4u_link();
   double get_last_updated();
   double get_idle_threshold_laser();
@@ -36,22 +37,27 @@ public:
   double get_cumulated_energy();
   double get_min_bytes_per_second();
   double get_max_bytes_per_second();
+  
+  std::vector<std::tuple<double, std::string, double, double, double>> get_comm_trace() const { return comm_trace; }
 
 private:
   s4u::Link* link_{};      /*< The link onto which this data is enabled*/
   bool is_enabled_{false}; /*< Whether the link is enabled or not*/
+  std::string dlps_mode_{"none"}; /*< DLPS mode */
 
   double cumulated_bytes_{0.0};      /*< Cumulated load since last reset*/
   double cumulated_energy_{0.0};     /*< Cumulated energy since last reset*/
-  double min_bytes_per_second_{0.0}; /*< Minimum instantaneous load observed since last reset*/
-  double max_bytes_per_second_{0.0}; /*< Maximum instantaneous load observed since last reset*/
-  double last_reset_{-1.0};          /*< Timestamp of the last reset (init timestamp by default)*/
+  double min_bytes_per_second_{std::numeric_limits<double>::max()}; /*< Minimum instantaneous load observed since last reset*/
+  double max_bytes_per_second_{std::numeric_limits<double>::lowest()}; /*< Maximum instantaneous load observed since last reset*/
+  double last_reset_{0.0};          /*< Timestamp of the last reset (init timestamp by default)*/
   double last_updated_{-1.0};        /*< Timestamp of the last update event*/
 
   double idle_threshold_laser_{0.0};  /*< Idle threshold laser for the managed link*/
   double idle_threshold_tuning_{0.0}; /*< Idle threshold tuning for the managed link*/
 
-  double data_rate_to_power(double rate, bool tuning_on = true); /*< Compute power from data rate*/
+  double data_rate_to_power(double rate, bool laser_on = true, bool tuning_on = true); /*< Compute power from data rate*/
+
+  std::vector<std::tuple<double, std::string, double, double, double>> comm_trace; /*< timestamp, state, usage, power, energy*/
 };
 
 }
