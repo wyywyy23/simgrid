@@ -91,7 +91,8 @@ double Model::next_occurring_event_lazy(double now)
       action_heap_.update(action, min, action_type);
       XBT_DEBUG("Insert at heap action(%p) min %f now %f", action, min, now);
     } else
-      DIE_IMPOSSIBLE;
+      // DIE_IMPOSSIBLE;
+      maxmin_system_->modified_set_->push_back(*action); // Temporarily solve 0 resource issue. May not work for all cases.
   }
 
   // hereafter must have already the min value for this resource model
