@@ -187,6 +187,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   double latency = 0.0;
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
+  if (rate == -1.0) rate = 300000000000.0 / 8;
 
   XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
 
@@ -237,6 +238,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->sharing_penalty_ = latency;
   action->latency_         = latency;
   action->set_user_bound(rate);
+  action->size_            = size;
   XBT_INFO("Requested rate: %f", action->get_user_bound());
 
   if (is_update_lazy()) {

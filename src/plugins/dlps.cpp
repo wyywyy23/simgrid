@@ -96,7 +96,7 @@ void DLPS::update_on_comm_start(double actual_start_time)
 
   // Update cumulated load
   double duration_since_last_update = now - last_updated_;
-  double bytes_since_last_update    = duration_since_last_update * current_instantaneous_bytes_per_second;
+  double bytes_since_last_update    = 0.;
   XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
             duration_since_last_update);
   cumulated_bytes_ += bytes_since_last_update;
@@ -212,7 +212,7 @@ void DLPS::update_on_comm_start(double actual_start_time)
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
-void DLPS::update_on_comm_end(double actual_start_time)
+void DLPS::update_on_comm_end(double actual_start_time, double size)
 {
   XBT_DEBUG("Updating load of link '%s' on communication end", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -244,7 +244,7 @@ void DLPS::update_on_comm_end(double actual_start_time)
 
   // Update cumulated load
   double duration_since_last_update = now - std::max(last_updated_, actual_start_time);
-  double bytes_since_last_update    = duration_since_last_update * current_instantaneous_bytes_per_second;
+  double bytes_since_last_update    = size;
   XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
             duration_since_last_update);
   cumulated_bytes_ += bytes_since_last_update;
@@ -384,7 +384,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
             }
           }
 
-          dlps->update_on_comm_end(action.get_actual_start_time());
+          dlps->update_on_comm_end(action.get_actual_start_time(), action.get_size());
       }
     }
   }

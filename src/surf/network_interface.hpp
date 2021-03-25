@@ -203,6 +203,8 @@ public:
   double latency_         = 0.; // Delay before the action starts
   double lat_current_     = 0.; // Used to compute the communication RTT, and accordingly limit the communication rate
   double sharing_penalty_ = {};
+  double size_ = 0.;
+  double get_size() const { return size_; }
 
   s4u::Host& get_src() const { return src_; }
   s4u::Host& get_dst() const { return dst_; }
