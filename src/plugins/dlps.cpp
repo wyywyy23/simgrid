@@ -366,7 +366,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
-        if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
+        if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED) {
           link->get_iface()->remove_active_action_at(action.get_start_time());
           link->get_iface()->set_last_busy(now);
 
@@ -383,8 +383,8 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
               link->get_iface()->set_next_off(now);
             }
           }
-
           dlps->update_on_comm_end(action.get_actual_start_time(), action.get_size());
+	}
       }
     }
   }
