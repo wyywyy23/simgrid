@@ -19,7 +19,7 @@ namespace resource {
  * Model *
  *********/
 
-DiskModel::DiskModel()
+DiskModel::DiskModel(const std::string& name) : Model(name)
 {
   set_maxmin_system(new lmm::System(true /* selective update */));
 }
@@ -69,7 +69,7 @@ void DiskImpl::destroy()
 
 bool DiskImpl::is_used() const
 {
-  THROW_UNIMPLEMENTED;
+  return get_model()->get_maxmin_system()->constraint_used(get_constraint());
 }
 
 void DiskImpl::apply_event(kernel::profile::Event* /*event*/, double /*value*/)

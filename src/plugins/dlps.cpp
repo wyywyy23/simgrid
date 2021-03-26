@@ -208,11 +208,11 @@ void DLPS::update_on_comm_start(double actual_start_time)
   } */
 
   last_updated_ = now;
-  XBT_INFO("%s,communicate,%.17f,%f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_bandwidth());
+
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
-void DLPS::update_on_comm_end(double actual_start_time, double size)
+void DLPS::update_on_comm_end(double actual_start_time, double actual_transfer_end_time, double size)
 {
   XBT_DEBUG("Updating load of link '%s' on communication end", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -222,7 +222,7 @@ void DLPS::update_on_comm_end(double actual_start_time, double size)
 
   std::string link_name = link_->get_cname();
   double current_instantaneous_bytes_per_second = link_->get_usage();
-  double now                                    = surf_get_clock();
+  double now                                    = actual_transfer_end_time;
 
   s4u::Link::State last_state = link_->get_last_state();
 
@@ -276,7 +276,7 @@ void DLPS::update_on_comm_end(double actual_start_time, double size)
   cumulated_energy_ += energy_since_last_update;
 
   last_updated_ = now;
-  XBT_INFO("%s,finished,%.17f,%f,%f\n", link_name.c_str(), now, current_instantaneous_bytes_per_second, link_->get_bandwidth());
+
   xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
@@ -316,6 +316,7 @@ double DLPS::get_cumulated_bytes()
 
 double DLPS::get_cumulated_energy()
 {
+  update_on_comm_start(surf_get_clock());
   return cumulated_energy_;
 }
 
@@ -348,10 +349,12 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
 {
   // XBT_DEBUG("on_communicate is called");
   
+  double now = surf_get_clock();
   for (auto* link : action.get_links()) {
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
+        XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions_at(now));
         dlps->update_on_comm_start(action.get_actual_start_time());
       }
     }
@@ -362,28 +365,35 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
          simgrid::kernel::resource::Action::State previous_state) {
 
   double now = surf_get_clock();
+  double transfer_time_per_link = (now - action.get_actual_start_time()) / action.get_links().size();
+  int link_idx = 0;
   for (auto* link : action.get_links()) {
+    link_idx++;
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
         if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED) {
-          link->get_iface()->remove_active_action_at(action.get_start_time());
-          link->get_iface()->set_last_busy(now);
 
-          if (link->get_iface()->get_num_active_actions_at(surf_get_clock()) == 0) {
+	  //double actual_transfer_end_time = action.get_actual_start_time() + link_idx * transfer_time_per_link;
+	  double actual_transfer_end_time = now;
+          link->get_iface()->remove_active_action_at(action.get_start_time());
+          link->get_iface()->set_last_busy(actual_transfer_end_time);
+
+          if (link->get_iface()->get_num_active_actions_at(actual_transfer_end_time) == 0) {
             if (dlps->get_dlps_mode() == "full") {
-              link->get_iface()->set_next_ready(now);
-              link->get_iface()->set_next_standby(now + dlps->get_idle_threshold_laser());
-              link->get_iface()->set_next_off(now + dlps->get_idle_threshold_tuning());
+              link->get_iface()->set_next_ready(actual_transfer_end_time);
+              link->get_iface()->set_next_standby(actual_transfer_end_time + dlps->get_idle_threshold_laser());
+              link->get_iface()->set_next_off(actual_transfer_end_time + dlps->get_idle_threshold_tuning());
             }
             else if (dlps->get_dlps_mode() == "laser") {
-              link->get_iface()->set_next_ready(now);
-              link->get_iface()->set_next_standby(now + dlps->get_idle_threshold_tuning());
+              link->get_iface()->set_next_ready(actual_transfer_end_time);
+              link->get_iface()->set_next_standby(actual_transfer_end_time + dlps->get_idle_threshold_tuning());
             } else if (dlps->get_dlps_mode() == "on-off") {
-              link->get_iface()->set_next_off(now);
+              link->get_iface()->set_next_off(actual_transfer_end_time);
             }
           }
-          dlps->update_on_comm_end(action.get_actual_start_time(), action.get_size());
+          dlps->update_on_comm_end(action.get_actual_start_time(), actual_transfer_end_time, action.get_size());
+	  XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions_at(now));
 	}
       }
     }

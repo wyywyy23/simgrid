@@ -270,9 +270,8 @@ int CpuTiProfile::binary_search(const std::vector<double>& array, double a)
 
 void CpuTiModel::create_pm_models()
 {
-  auto cpu_model_pm = std::make_shared<CpuTiModel>();
-  simgrid::kernel::EngineImpl::get_instance()->add_model(simgrid::kernel::resource::Model::Type::CPU_PM, cpu_model_pm,
-                                                         true);
+  auto cpu_model_pm = std::make_shared<CpuTiModel>("Cpu_TI");
+  simgrid::kernel::EngineImpl::get_instance()->add_model(cpu_model_pm);
   simgrid::s4u::Engine::get_instance()->get_netzone_root()->get_impl()->set_cpu_pm_model(cpu_model_pm);
 }
 
@@ -329,7 +328,7 @@ CpuTi::~CpuTi()
   delete speed_integrated_trace_;
 }
 
-void CpuTi::set_speed_profile(kernel::profile::Profile* profile)
+Cpu* CpuTi::set_speed_profile(kernel::profile::Profile* profile)
 {
   delete speed_integrated_trace_;
   speed_integrated_trace_ = new CpuTiTmgr(profile, speed_.scale);
@@ -342,6 +341,7 @@ void CpuTi::set_speed_profile(kernel::profile::Profile* profile)
       speed_.event = prof->schedule(&profile::future_evt_set, this);
     }
   }
+  return this;
 }
 
 void CpuTi::apply_event(kernel::profile::Event* event, double value)

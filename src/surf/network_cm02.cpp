@@ -47,9 +47,8 @@ double dlps_idle_threshold_laser = 300.0e-9;
 /*  } */
 void surf_network_model_init_LegrandVelho()
 {
-  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>();
-  simgrid::kernel::EngineImpl::get_instance()->add_model(simgrid::kernel::resource::Model::Type::NETWORK, net_model,
-                                                         true);
+  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>("Network_LegrandVelho");
+  simgrid::kernel::EngineImpl::get_instance()->add_model(net_model);
   simgrid::s4u::Engine::get_instance()->get_netzone_root()->get_impl()->set_network_model(net_model);
 
   simgrid::config::set_default<double>("network/latency-factor", 13.01);
@@ -74,9 +73,8 @@ void surf_network_model_init_CM02()
   simgrid::config::set_default<double>("network/bandwidth-factor", 1.0);
   simgrid::config::set_default<double>("network/weight-S", 0.0);
 
-  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>();
-  simgrid::kernel::EngineImpl::get_instance()->add_model(simgrid::kernel::resource::Model::Type::NETWORK, net_model,
-                                                         true);
+  auto net_model = std::make_shared<simgrid::kernel::resource::NetworkCm02Model>("Network_CM02");
+  simgrid::kernel::EngineImpl::get_instance()->add_model(net_model);
   simgrid::s4u::Engine::get_instance()->get_netzone_root()->get_impl()->set_network_model(net_model);
 }
 
@@ -84,7 +82,7 @@ namespace simgrid {
 namespace kernel {
 namespace resource {
 
-NetworkCm02Model::NetworkCm02Model()
+NetworkCm02Model::NetworkCm02Model(const std::string& name) : NetworkModel(name)
 {
   if (config::get_value<std::string>("network/optim") == "Lazy")
     set_update_algorithm(Model::UpdateAlgo::LAZY);
