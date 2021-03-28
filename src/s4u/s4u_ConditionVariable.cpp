@@ -9,7 +9,7 @@
 #include "simgrid/simix.h"
 #include "src/kernel/activity/ConditionVariableImpl.hpp"
 #include "src/kernel/activity/MutexImpl.hpp"
-#include "src/mc/checker/SimcallObserver.hpp"
+#include "src/kernel/actor/SimcallObserver.hpp"
 #include "xbt/log.hpp"
 
 #include <exception>
@@ -31,16 +31,16 @@ ConditionVariablePtr ConditionVariable::create()
 void ConditionVariable::wait(MutexPtr lock)
 {
   kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  mc::ConditionWaitSimcall observer{issuer, pimpl_, lock->pimpl_};
-  kernel::actor::simcall_blocking<void>(
+  kernel::actor::ConditionWaitSimcall observer{issuer, pimpl_, lock->pimpl_};
+  kernel::actor::simcall_blocking(
       [&observer] { observer.get_cond()->wait(observer.get_mutex(), -1.0, observer.get_issuer()); }, &observer);
 }
 
 void ConditionVariable::wait(const std::unique_lock<Mutex>& lock)
 {
   kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  mc::ConditionWaitSimcall observer{issuer, pimpl_, lock.mutex()->pimpl_};
-  kernel::actor::simcall_blocking<void>(
+  kernel::actor::ConditionWaitSimcall observer{issuer, pimpl_, lock.mutex()->pimpl_};
+  kernel::actor::simcall_blocking(
       [&observer] { observer.get_cond()->wait(observer.get_mutex(), -1.0, observer.get_issuer()); }, &observer);
 }
 
@@ -51,11 +51,10 @@ std::cv_status s4u::ConditionVariable::wait_for(const std::unique_lock<Mutex>& l
     timeout = 0.0;
 
   kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  mc::ConditionWaitSimcall observer{issuer, pimpl_, lock.mutex()->pimpl_, timeout};
-  kernel::actor::simcall_blocking<void>(
+  kernel::actor::ConditionWaitSimcall observer{issuer, pimpl_, lock.mutex()->pimpl_, timeout};
+  bool timed_out = kernel::actor::simcall_blocking(
       [&observer] { observer.get_cond()->wait(observer.get_mutex(), observer.get_timeout(), observer.get_issuer()); },
       &observer);
-  bool timed_out = observer.get_result();
   if (timed_out) {
     // If we reached the timeout, we have to take the lock again:
     lock.mutex()->lock();

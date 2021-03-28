@@ -17,8 +17,10 @@
 #include <string>
 #include <unordered_map>
 
-XBT_PUBLIC void simcall_run_kernel(std::function<void()> const& code, simgrid::mc::SimcallObserver* observer);
-XBT_PUBLIC void simcall_run_blocking(std::function<void()> const& code, simgrid::mc::SimcallObserver* observer);
+XBT_PUBLIC void simcall_run_kernel(std::function<void()> const& code,
+                                   simgrid::kernel::actor::SimcallObserver* observer);
+XBT_PUBLIC void simcall_run_blocking(std::function<void()> const& code,
+                                     simgrid::kernel::actor::SimcallObserver* observer);
 
 namespace simgrid {
 namespace kernel {
@@ -43,7 +45,7 @@ namespace actor {
  * you may need to wait for that mutex to be unlocked by its current owner.
  * Potentially blocking simcall must be issued using simcall_blocking(), right below in this file.
  */
-template <class F> typename std::result_of_t<F()> simcall(F&& code, mc::SimcallObserver* observer = nullptr)
+template <class F> typename std::result_of_t<F()> simcall(F&& code, SimcallObserver* observer = nullptr)
 {
   // If we are in the maestro, we take the fast path and execute the
   // code directly without simcall marshalling/unmarshalling/dispatch:
@@ -64,9 +66,6 @@ template <class F> typename std::result_of_t<F()> simcall(F&& code, mc::SimcallO
  * This is very similar to simcall() right above, but the calling actor will not get rescheduled until
  * actor->simcall_answer() is called explicitly.
  *
- * Since the return value does not come from the lambda directly, its type cannot be guessed automatically and must
- * be provided as template parameter.
- *
  * This is meant for blocking actions. For example, locking a mutex is a blocking simcall.
  * First it's a simcall because that's obviously a modification of the world. Then, that's a blocking simcall because if
  * the mutex happens not to be free, the actor is added to a queue of actors in the mutex. Every mutex->unlock() takes
@@ -75,23 +74,33 @@ template <class F> typename std::result_of_t<F()> simcall(F&& code, mc::SimcallO
  * right away with actor->simcall_answer() once the mutex is marked as locked.
  *
  * If your code never calls actor->simcall_answer() itself, the actor will never return from its simcall.
+ *
+ * The return value is obtained from observer->get_result() if it exists. Otherwise void is returned.
  */
-template <class R, class F> R simcall_blocking(F&& code, mc::SimcallObserver* observer = nullptr)
+template <class F> void simcall_blocking(F&& code, SimcallObserver* observer = nullptr)
 {
   xbt_assert(not SIMIX_is_maestro(), "Cannot execute blocking call in kernel mode");
 
-  // If we are in the application, pass the code to the maestro which
-  // executes it for us and reports the result. We use a std::future which
+  // Pass the code to the maestro which executes it for us and reports the result. We use a std::future which
   // conveniently handles the success/failure value for us.
-  simgrid::xbt::Result<R> result;
+  simgrid::xbt::Result<void> result;
   simcall_run_blocking([&result, &code] { simgrid::xbt::fulfill_promise(result, std::forward<F>(code)); }, observer);
-  return result.get();
+  result.get(); // rethrow stored exception if any
+}
+
+template <class F, class Observer>
+auto simcall_blocking(F&& code, Observer* observer) -> decltype(observer->get_result())
+{
+  simcall_blocking(std::forward<F>(code), static_cast<SimcallObserver*>(observer));
+  return observer->get_result();
 }
 } // namespace actor
 } // namespace kernel
 } // namespace simgrid
 namespace simgrid {
 namespace simix {
+
+XBT_PUBLIC void unblock(smx_actor_t process);
 
 inline auto& simix_timers() // avoid static initialization order fiasco
 {

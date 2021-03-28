@@ -9,7 +9,7 @@
 #include "simgrid/forward.h"
 #include "simgrid/s4u/Semaphore.hpp"
 #include "src/kernel/activity/SemaphoreImpl.hpp"
-#include "src/mc/checker/SimcallObserver.hpp"
+#include "src/kernel/actor/SimcallObserver.hpp"
 
 namespace simgrid {
 namespace s4u {
@@ -23,18 +23,16 @@ SemaphorePtr Semaphore::create(unsigned int initial_capacity)
 void Semaphore::acquire()
 {
   kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  mc::SemAcquireSimcall observer{issuer, pimpl_};
-  kernel::actor::simcall_blocking<void>([&observer] { observer.get_sem()->acquire(observer.get_issuer(), -1.0); },
-                                        &observer);
+  kernel::actor::SemAcquireSimcall observer{issuer, pimpl_};
+  kernel::actor::simcall_blocking([&observer] { observer.get_sem()->acquire(observer.get_issuer(), -1.0); }, &observer);
 }
 
 bool Semaphore::acquire_timeout(double timeout)
 {
   kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  mc::SemAcquireSimcall observer{issuer, pimpl_, timeout};
-  kernel::actor::simcall_blocking<void>(
+  kernel::actor::SemAcquireSimcall observer{issuer, pimpl_, timeout};
+  return kernel::actor::simcall_blocking(
       [&observer] { observer.get_sem()->acquire(observer.get_issuer(), observer.get_timeout()); }, &observer);
-  return observer.get_result();
 }
 
 void Semaphore::release()
