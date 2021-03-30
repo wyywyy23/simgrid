@@ -3,6 +3,7 @@
 /* This program is free software; you can redistribute it and/or modify it
  * under the terms of the license (GNU LGPL) which comes with this package. */
 
+#include "simgrid/Exception.hpp"
 #include "simgrid/host.h"
 #include "simgrid/kernel/routing/NetPoint.hpp"
 #include "simgrid/s4u/Actor.hpp"
@@ -12,6 +13,7 @@
 #include "simgrid/s4u/VirtualMachine.hpp"
 #include "src/plugins/vm/VirtualMachineImpl.hpp"
 #include "src/surf/HostImpl.hpp"
+#include "xbt/parse_units.hpp"
 
 #include <algorithm>
 #include <string>
@@ -30,13 +32,6 @@ xbt::signal<void(Host const&)> Host::on_destruction;
 xbt::signal<void(Host const&)> Host::on_state_change;
 xbt::signal<void(Host const&)> Host::on_speed_change;
 
-Host::Host(const std::string& name) : name_(name)
-{
-  xbt_assert(Host::by_name_or_null(name_) == nullptr, "Refusing to create a second host named '%s'.", get_cname());
-  Engine::get_instance()->host_register(name_, this);
-  new surf::HostImpl(this);
-}
-
 Host* Host::set_netpoint(kernel::routing::NetPoint* netpoint)
 {
   pimpl_netpoint_ = netpoint;
@@ -45,7 +40,6 @@ Host* Host::set_netpoint(kernel::routing::NetPoint* netpoint)
 
 Host::~Host()
 {
-  delete pimpl_;
   if (pimpl_netpoint_ != nullptr) // not removed yet by a children class
     Engine::get_instance()->netpoint_unregister(pimpl_netpoint_);
   delete pimpl_cpu;
@@ -60,9 +54,7 @@ Host::~Host()
  */
 void Host::destroy()
 {
-  on_destruction(*this);
-  Engine::get_instance()->host_unregister(std::string(name_));
-  delete this;
+  kernel::actor::simcall([this] { this->pimpl_->destroy(); });
 }
 
 Host* Host::by_name(const std::string& name)
@@ -80,6 +72,16 @@ Host* Host::current()
   if (self == nullptr)
     xbt_die("Cannot call Host::current() from the maestro context");
   return self->get_host();
+}
+
+xbt::string const& Host::get_name() const
+{
+  return this->pimpl_->get_name();
+}
+
+const char* Host::get_cname() const
+{
+  return this->pimpl_->get_cname();
 }
 
 void Host::turn_on()
@@ -261,6 +263,27 @@ int Host::get_core_count() const
 Host* Host::set_core_count(int core_count)
 {
   kernel::actor::simcall([this, core_count] { this->pimpl_cpu->set_core_count(core_count); });
+  return this;
+}
+
+Host* Host::set_pstate_speed(const std::vector<double>& speed_per_state)
+{
+  kernel::actor::simcall([this, &speed_per_state] { pimpl_cpu->set_pstate_speed(speed_per_state); });
+  return this;
+}
+
+Host* Host::set_pstate_speed(const std::vector<std::string>& speed_per_state)
+{
+  std::vector<double> speed_list(speed_per_state.size());
+  for (const auto& speed_str : speed_per_state) {
+    try {
+      double speed = xbt_parse_get_speed("", 0, speed_str.c_str(), nullptr, "");
+      speed_list.push_back(speed);
+    } catch (const simgrid::ParseError& e) {
+      xbt_die("Host(%s): Impossible to set_pstate_speed, invalid speed %s", get_cname(), speed_str.c_str());
+    }
+  }
+  set_pstate_speed(speed_list);
   return this;
 }
 
