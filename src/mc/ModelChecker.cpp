@@ -105,11 +105,12 @@ void ModelChecker::shutdown()
 {
   XBT_DEBUG("Shutting down model-checker");
 
-  RemoteProcess* process = &this->get_remote_process();
-  if (process->running()) {
+  RemoteProcess& process = get_remote_process();
+  if (process.running()) {
     XBT_DEBUG("Killing process");
-    kill(process->pid(), SIGKILL);
-    process->terminate();
+    finalize_app(true);
+    kill(process.pid(), SIGKILL);
+    process.terminate();
   }
 }
 
@@ -240,9 +241,7 @@ bool ModelChecker::handle_message(const char* buffer, ssize_t size)
 /** Terminate the model-checker application */
 void ModelChecker::exit(int status)
 {
-  // TODO, terminate the model checker politely instead of exiting rudely
-  if (get_remote_process().running())
-    kill(get_remote_process().pid(), SIGKILL);
+  shutdown();
   ::exit(status);
 }
 
@@ -267,9 +266,11 @@ void ModelChecker::handle_waitpid()
       // From PTRACE_O_TRACEEXIT:
 #ifdef __linux__
       if (status>>8 == (SIGTRAP | (PTRACE_EVENT_EXIT<<8))) {
-        xbt_assert(ptrace(PTRACE_GETEVENTMSG, remote_process_->pid(), 0, &status) != -1, "Could not get exit status");
+        int ptrace_res = ptrace(PTRACE_GETEVENTMSG, remote_process_->pid(), 0, &status);
+        xbt_assert(ptrace_res != -1, "Could not get exit status");
         if (WIFSIGNALED(status)) {
           MC_report_crash(status);
+          this->get_remote_process().terminate();
           this->exit(SIMGRID_MC_EXIT_PROGRAM_CRASH);
         }
       }
@@ -289,6 +290,7 @@ void ModelChecker::handle_waitpid()
 
       else if (WIFSIGNALED(status)) {
         MC_report_crash(status);
+        this->get_remote_process().terminate();
         this->exit(SIMGRID_MC_EXIT_PROGRAM_CRASH);
       } else if (WIFEXITED(status)) {
         XBT_DEBUG("Child process is over");
@@ -379,12 +381,14 @@ std::string ModelChecker::simcall_dot_label(int aid, int times_considered)
   return answer;
 }
 
-void ModelChecker::finalize_app()
+void ModelChecker::finalize_app(bool terminate_asap)
 {
-  int res = checker_side_.get_channel().send(MessageType::FINALIZE);
-  xbt_assert(res == 0, "Could not ask the app to finalize MPI on need");
-  s_mc_message_int_t message;
-  ssize_t s = checker_side_.get_channel().receive(message);
+  s_mc_message_int_t m{MessageType::FINALIZE, terminate_asap};
+  int res = checker_side_.get_channel().send(m);
+  xbt_assert(res == 0, "Could not ask the app to finalize on need");
+
+  s_mc_message_t answer;
+  ssize_t s = checker_side_.get_channel().receive(answer);
   xbt_assert(s != -1, "Could not receive answer to FINALIZE");
 }
 
