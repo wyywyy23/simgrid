@@ -204,6 +204,9 @@ public:
   double size_ = 0.;
   double get_size() const { return size_; }
 
+  std::vector<LinkImpl*> route_;
+  std::vector<LinkImpl*> get_route() const { return route_; }
+
   s4u::Host& get_src() const { return src_; }
   s4u::Host& get_dst() const { return dst_; }
 };

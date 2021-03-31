@@ -111,6 +111,10 @@ public:
   Link::State last_state_ = Link::State::ON;
 
   /** wyy: timestamps related to the states */
+  double next_wake_ = 0.0;
+  void set_next_wake(double time) { next_wake_ = time; }
+  double get_next_wake() const { return next_wake_; }
+
   double next_on_ = 0.0;
   void set_next_on(double time) { next_on_ = time; }
   double get_next_on() const { return next_on_; }

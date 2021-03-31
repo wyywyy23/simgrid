@@ -238,6 +238,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->set_user_bound(rate);
   action->size_            = size;
   XBT_INFO("Requested rate: %f", action->get_user_bound());
+  action->route_ = route;
 
   if (is_update_lazy()) {
     action->set_last_update();
@@ -263,15 +264,18 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   // DLPS
   double extra_latency = 0.0;
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
+  int link_idx = 0;
   for (auto const& link : route) {
+    link_idx ++;
     double this_latency = 0.0;
+    link->get_iface()->set_next_wake(action->get_last_update() + link_idx * size / bandwidth_bound);
     if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
       continue;
     } else if (link->get_iface()->get_num_active_actions_before(action->get_last_update()) > 0) { // Not idle
       link->get_iface()->set_last_state(link->get_iface()->get_next_on() > action->get_last_update() ?
                                         link->get_iface()->get_last_state() : s4u::Link::State::ON);
       this_latency += std::max(0.0, link->get_iface()->get_next_on() - action->get_last_update());
-    } else if (link->get_iface()->get_last_busy() < 0 || action->get_last_update() - link->get_iface()->get_last_busy() > dlps_idle_threshold_tuning) { // First transmission or long idle
+    } else if (link->get_iface()->get_last_busy() < 0 || link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy() > dlps_idle_threshold_tuning) { // First transmission or long idle
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -280,8 +284,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
       if (link->get_iface()->get_last_busy() > 0)
-        link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
-    } else if (action->get_last_update() - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) { // Medium idle
+        link->get_iface()->interval_recorder.push_back(link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy());
+    } else if (link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) { // Medium idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -289,8 +293,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
-    } else if (action->get_last_update() - link->get_iface()->get_last_busy() > 0) { // Short idle
+      link->get_iface()->interval_recorder.push_back(link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy());
+    } else if (link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy() > 0) { // Short idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_waking : (
                       dlps_mode == "laser" ? dlps_delay_laser_waking : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -298,14 +302,16 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::READY : (
                       dlps_mode == "laser" ? s4u::Link::State::READY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
+      link->get_iface()->interval_recorder.push_back(link->get_iface()->get_next_wake() - link->get_iface()->get_last_busy());
     } else {
       link->get_iface()->set_last_state(s4u::Link::State::ON);
     }
+
     extra_latency = std::max(extra_latency, this_latency);
     link->get_iface()->add_active_action_at(action->get_last_update());
-    link->get_iface()->set_next_on(dlps_mode == "none" ? action->get_last_update() : action->get_last_update() + this_latency);
+    link->get_iface()->set_next_on(dlps_mode == "none" ? action->get_last_update() : link->get_iface()->get_next_wake() + this_latency);
   }
+
   action->latency_ += extra_latency; // DLPS latency
   action->set_actual_start_time(action->get_last_update() + extra_latency);
 
