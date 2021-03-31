@@ -268,7 +268,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   for (auto const& link : route) {
     link_idx ++;
     double this_latency = 0.0;
-    link->get_iface()->set_next_wake(action->get_last_update() + link_idx * size / bandwidth_bound);
+    link->get_iface()->set_next_wake(action->get_last_update() + (link_idx - 1) * size / bandwidth_bound);
     if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
       continue;
     } else if (link->get_iface()->get_num_active_actions_before(action->get_last_update()) > 0) { // Not idle
