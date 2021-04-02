@@ -85,6 +85,7 @@ Cpu* Cpu::set_pstate_speed(const std::vector<double>& speed_per_state)
   xbt_assert(speed_per_state.size() > 0, "CPU %s: processor speed vector cannot be empty", get_cname());
   xbt_assert(not is_sealed(), "CPU %s: processor speed cannot be changed once CPU has been sealed", get_cname());
   speed_per_pstate_ = speed_per_state;
+  speed_.peak       = speed_per_pstate_.front();
   return this;
 }
 
@@ -128,6 +129,9 @@ Cpu* Cpu::set_speed_profile(kernel::profile::Profile* profile)
 
 void Cpu::seal()
 {
+  if (is_sealed()) {
+    return;
+  }
   lmm::System* lmm = get_model()->get_maxmin_system();
   if (dynamic_cast<CpuTiModel*>(get_model()) == nullptr)
     this->set_constraint(lmm->constraint_new(this, core_count_ * speed_per_pstate_.front()));

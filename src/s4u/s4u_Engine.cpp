@@ -308,7 +308,9 @@ void Engine::run() const
 /** @brief Retrieve the root netzone, containing all others */
 s4u::NetZone* Engine::get_netzone_root() const
 {
-  return pimpl->netzone_root_->get_iface();
+  if (pimpl->netzone_root_)
+    return pimpl->netzone_root_->get_iface();
+  return nullptr;
 }
 /** @brief Set the root netzone, containing all others. Once set, it cannot be changed. */
 void Engine::set_netzone_root(const s4u::NetZone* netzone)
@@ -342,6 +344,15 @@ kernel::routing::NetPoint* Engine::netpoint_by_name_or_null(const std::string& n
 {
   auto netp = pimpl->netpoints_.find(name);
   return netp == pimpl->netpoints_.end() ? nullptr : netp->second;
+}
+
+kernel::routing::NetPoint* Engine::netpoint_by_name(const std::string& name) const
+{
+  auto netp = netpoint_by_name_or_null(name);
+  if (netp == nullptr) {
+    throw std::invalid_argument(std::string("Netpoint not found: %s") + name);
+  }
+  return netp;
 }
 
 std::vector<kernel::routing::NetPoint*> Engine::get_all_netpoints() const

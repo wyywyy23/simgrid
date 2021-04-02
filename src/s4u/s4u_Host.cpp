@@ -69,8 +69,7 @@ Host* Host::by_name_or_null(const std::string& name)
 Host* Host::current()
 {
   kernel::actor::ActorImpl* self = kernel::actor::ActorImpl::self();
-  if (self == nullptr)
-    xbt_die("Cannot call Host::current() from the maestro context");
+  xbt_assert(self != nullptr, "Cannot call Host::current() from the maestro context");
   return self->get_host();
 }
 
@@ -272,18 +271,24 @@ Host* Host::set_pstate_speed(const std::vector<double>& speed_per_state)
   return this;
 }
 
-Host* Host::set_pstate_speed(const std::vector<std::string>& speed_per_state)
+std::vector<double> Host::convert_pstate_speed_vector(const std::vector<std::string>& speed_per_state)
 {
-  std::vector<double> speed_list(speed_per_state.size());
+  std::vector<double> speed_list;
+  speed_list.reserve(speed_per_state.size());
   for (const auto& speed_str : speed_per_state) {
     try {
       double speed = xbt_parse_get_speed("", 0, speed_str.c_str(), nullptr, "");
       speed_list.push_back(speed);
-    } catch (const simgrid::ParseError& e) {
-      xbt_die("Host(%s): Impossible to set_pstate_speed, invalid speed %s", get_cname(), speed_str.c_str());
+    } catch (const simgrid::ParseError&) {
+      throw std::invalid_argument(std::string("Invalid speed value: ") + speed_str);
     }
   }
-  set_pstate_speed(speed_list);
+  return speed_list;
+}
+
+Host* Host::set_pstate_speed(const std::vector<std::string>& speed_per_state)
+{
+  set_pstate_speed(Host::convert_pstate_speed_vector(speed_per_state));
   return this;
 }
 
@@ -340,6 +345,11 @@ void Host::execute(double flops) const
 void Host::execute(double flops, double priority) const
 {
   this_actor::exec_init(flops)->set_priority(1 / priority)->vetoable_start()->wait();
+}
+
+void Host::seal()
+{
+  kernel::actor::simcall([this]() { this->pimpl_->seal(); });
 }
 
 } // namespace s4u

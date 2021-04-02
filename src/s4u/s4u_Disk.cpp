@@ -75,27 +75,27 @@ Disk* Disk::set_property(const std::string& key, const std::string& value)
   return this;
 }
 
-IoPtr Disk::io_init(sg_size_t size, Io::OpType type)
+IoPtr Disk::io_init(sg_size_t size, Io::OpType type) const
 {
   return Io::init()->set_disk(this)->set_size(size)->set_op_type(type);
 }
 
-IoPtr Disk::read_async(sg_size_t size)
+IoPtr Disk::read_async(sg_size_t size) const
 {
   return IoPtr(io_init(size, Io::OpType::READ))->vetoable_start();
 }
 
-sg_size_t Disk::read(sg_size_t size)
+sg_size_t Disk::read(sg_size_t size) const
 {
   return IoPtr(io_init(size, Io::OpType::READ))->vetoable_start()->wait()->get_performed_ioops();
 }
 
-IoPtr Disk::write_async(sg_size_t size)
+IoPtr Disk::write_async(sg_size_t size) const
 {
   return IoPtr(io_init(size, Io::OpType::WRITE)->vetoable_start());
 }
 
-sg_size_t Disk::write(sg_size_t size)
+sg_size_t Disk::write(sg_size_t size) const
 {
   return IoPtr(io_init(size, Io::OpType::WRITE))->vetoable_start()->wait()->get_performed_ioops();
 }
@@ -131,11 +131,11 @@ double sg_disk_write_bandwidth(const_sg_disk_t disk)
   return disk->get_write_bandwidth();
 }
 
-sg_size_t sg_disk_read(sg_disk_t disk, sg_size_t size)
+sg_size_t sg_disk_read(const_sg_disk_t disk, sg_size_t size)
 {
   return disk->read(size);
 }
-sg_size_t sg_disk_write(sg_disk_t disk, sg_size_t size)
+sg_size_t sg_disk_write(const_sg_disk_t disk, sg_size_t size)
 {
   return disk->write(size);
 }

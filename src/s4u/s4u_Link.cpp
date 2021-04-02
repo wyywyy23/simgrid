@@ -5,6 +5,7 @@
 
 #include <algorithm>
 
+#include "simgrid/Exception.hpp"
 #include "simgrid/s4u/Engine.hpp"
 #include "simgrid/s4u/Link.hpp"
 #include "simgrid/sg_config.hpp"
@@ -13,6 +14,7 @@
 #include "src/surf/network_interface.hpp"
 #include "src/surf/network_wifi.hpp"
 #include "xbt/log.h"
+#include "xbt/parse_units.hpp"
 
 namespace simgrid {
 
@@ -68,6 +70,18 @@ Link* Link::set_latency(double value)
   return this;
 }
 
+Link* Link::set_latency(const std::string& value)
+{
+  double d_value = 0.0;
+  try {
+    d_value = xbt_parse_get_time("", 0, value.c_str(), nullptr, "");
+  } catch (const simgrid::ParseError&) {
+    throw std::invalid_argument(std::string("Impossible to set latency for link: ") + get_name() +
+                                std::string(". Invalid value: ") + value);
+  }
+  return set_latency(d_value);
+}
+
 double Link::get_bandwidth() const
 {
   return this->pimpl_->get_bandwidth();
@@ -79,6 +93,7 @@ Link* Link::set_bandwidth(double value)
   return this;
 }
 
+<<<<<<< HEAD
 /** wyy: more states */
 const char* Link::get_last_state_str() const {
   return to_c_str(last_state_);
@@ -113,6 +128,12 @@ void Link::remove_active_action_at(double time){
   active_actions[time] -= 1;
   if (active_actions[time] == 0)
     active_actions.erase(time);
+}
+
+Link* Link::set_sharing_policy(Link::SharingPolicy policy)
+{
+  kernel::actor::simcall([this, policy] { pimpl_->set_sharing_policy(policy); });
+  return this;
 }
 
 Link::SharingPolicy Link::get_sharing_policy() const

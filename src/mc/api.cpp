@@ -92,7 +92,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(const RemoteProc
 {
   /* reset the outgoing transition */
   simgrid::mc::ActorState* procstate = &state->actor_states_[actor->get_pid()];
-  state->transition_.pid_            = -1;
+  state->transition_.aid_              = -1;
   state->transition_.times_considered_ = -1;
   state->transition_.textual[0]        = '\0';
   state->executed_req_.call_         = Simcall::NONE;
@@ -170,7 +170,7 @@ static inline smx_simcall_t MC_state_choose_request_for_process(const RemoteProc
   if (not req)
     return nullptr;
 
-  state->transition_.pid_ = actor->get_pid();
+  state->transition_.aid_ = actor->get_pid();
   state->executed_req_    = *req;
 
   // Fetch the data of the request and translate it:
@@ -369,8 +369,7 @@ xbt::string const& Api::get_actor_host_name(smx_actor_t actor) const
 
   if (not info->hostname) {
     Remote<s4u::Host> temp_host = process->read(remote(actor->get_host()));
-    auto temp_host_name_address = &temp_host.get_buffer()->get_impl()->get_name();
-    auto remote_string_address  = remote(reinterpret_cast<const simgrid::xbt::string_data*>(temp_host_name_address));
+    auto remote_string_address  = remote(&xbt::string::to_string_data(temp_host.get_buffer()->get_impl()->get_name()));
     simgrid::xbt::string_data remote_string = process->read(remote_string_address);
     std::vector<char> hostname(remote_string.len + 1);
     // no need to read the terminating null byte, and thus hostname[remote_string.len] is guaranteed to be '\0'
@@ -380,10 +379,10 @@ xbt::string const& Api::get_actor_host_name(smx_actor_t actor) const
   return *info->hostname;
 }
 
-std::string Api::get_actor_name(smx_actor_t actor) const
+xbt::string const& Api::get_actor_name(smx_actor_t actor) const
 {
   if (mc_model_checker == nullptr)
-    return actor->get_cname();
+    return actor->get_name();
 
   simgrid::mc::ActorInformation* info = actor_info_cast(actor);
   if (info->name.empty()) {
@@ -401,7 +400,7 @@ std::string Api::get_actor_string(smx_actor_t actor) const
   if (actor) {
     res = "(" + std::to_string(actor->get_pid()) + ")";
     if (actor->get_host())
-      res += std::string(get_actor_host_name(actor)) + " (" + get_actor_name(actor) + ")";
+      res += std::string(get_actor_host_name(actor)) + " (" + std::string(get_actor_name(actor)) + ")";
     else
       res += get_actor_name(actor);
   } else
@@ -451,6 +450,7 @@ simgrid::mc::Checker* Api::initialize(char** argv, simgrid::mc::CheckerAlgorithm
       THROW_IMPOSSIBLE;
   }
 
+  // FIXME: session and checker are never deleted
   simgrid::mc::session_singleton = session;
   mc_model_checker->setChecker(checker);
   return checker;

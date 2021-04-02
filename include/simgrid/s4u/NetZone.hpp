@@ -7,6 +7,7 @@
 #define SIMGRID_S4U_NETZONE_HPP
 
 #include <simgrid/forward.h>
+#include <simgrid/s4u/Link.hpp>
 #include <xbt/graph.h>
 #include <xbt/signal.hpp>
 
@@ -62,8 +63,38 @@ public:
 
   /* Add content to the netzone, at parsing time. It should be sealed afterward. */
   int add_component(kernel::routing::NetPoint* elm); /* A host, a router or a netzone, whatever */
+
+  /**
+   * @brief Add a route between 2 netpoints
+   *
+   * Create a regular route between 2 netpoints. A netpoint can be a host
+   * or a router.
+   *
+   * @param src Source netpoint
+   * @param dst Destination netpoint
+   * @param link_list List of links used in this communication
+   * @param symmetrical Bi-directional communication
+   */
+  void add_regular_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
+                         const std::vector<Link*>& link_list, bool symmetrical = true);
+  /**
+   * @brief Add a route between 2 netzones
+   *
+   * Create a route between 2 netzones, connecting 2 gateways.
+   *
+   * @param src Source netzone's netpoint
+   * @param dst Destination netzone' netpoint
+   * @param src_gw Netpoint of the gateway in the source netzone
+   * @param dst_gw Netpoint of the gateway in the destination netzone
+   * @param link_list List of links used in this communication
+   * @param symmetrical Bi-directional communication
+   */
+  void add_netzone_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
+                         kernel::routing::NetPoint* gw_src, kernel::routing::NetPoint* gw_dst,
+                         const std::vector<Link*>& link_list, bool symmetrical = true);
+
   void add_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst, kernel::routing::NetPoint* gw_src,
-                 kernel::routing::NetPoint* gw_dst, std::vector<kernel::resource::LinkImpl*>& link_list,
+                 kernel::routing::NetPoint* gw_dst, const std::vector<kernel::resource::LinkImpl*>& link_list,
                  bool symmetrical);
   void add_bypass_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
                         kernel::routing::NetPoint* gw_src, kernel::routing::NetPoint* gw_dst,
@@ -76,7 +107,53 @@ public:
       on_route_creation;
   static xbt::signal<void(NetZone const&)> on_creation;
   static xbt::signal<void(NetZone const&)> on_seal;
+
+  /**
+   * @brief Create a host
+   *
+   * @param name Host name
+   * @param speed_per_state Vector of CPU's speeds
+   */
+  s4u::Host* create_host(const std::string& name, const std::vector<double>& speed_per_pstate);
+  /**
+   * @brief Create a Host (string version)
+   *
+   * @throw std::invalid_argument if speed format is incorrect.
+   */
+  s4u::Host* create_host(const std::string& name, const std::vector<std::string>& speed_per_pstate);
+
+  /**
+   * @brief Create a link
+   *
+   * @param name Link name
+   * @param bandwidths Link's speed (vector for wifi links)
+   * @param policy Link sharing policy
+   * @throw std::invalid_argument if bandwidth format is incorrect.
+   */
+  s4u::Link* create_link(const std::string& name, const std::vector<double>& bandwidths);
+
+  /** @brief Create a link (string version) */
+  s4u::Link* create_link(const std::string& name, const std::vector<std::string>& bandwidths);
+
+  /** @brief Seal this netzone configuration */
+  void seal();
+
+private:
+  /** @brief Auxiliary function to get list of LinkImpl */
+  static std::vector<kernel::resource::LinkImpl*> get_link_list_impl(const std::vector<Link*> link_list);
 };
+
+// External constructors so that the types (and the types of their content) remain hidden
+XBT_PUBLIC NetZone* create_full_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_cluster_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_dijkstra_zone(const std::string& name, bool cache);
+XBT_PUBLIC NetZone* create_dragonfly_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_empty_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_fatTree_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_floyd_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_torus_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_vivaldi_zone(const std::string& name);
+XBT_PUBLIC NetZone* create_wifi_zone(const std::string& name);
 
 } // namespace s4u
 } // namespace simgrid

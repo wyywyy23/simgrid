@@ -64,7 +64,7 @@ void FullZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs* 
 }
 
 void FullZone::add_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoint* gw_dst,
-                         std::vector<resource::LinkImpl*>& link_list, bool symmetrical)
+                         const std::vector<resource::LinkImpl*>& link_list, bool symmetrical)
 {
   add_route_check_params(src, dst, gw_src, gw_dst, link_list, symmetrical);
 
@@ -107,4 +107,12 @@ void FullZone::add_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoin
 }
 } // namespace routing
 } // namespace kernel
+
+namespace s4u {
+NetZone* create_full_zone(const std::string& name)
+{
+  return (new kernel::routing::FullZone(name))->get_iface();
+}
+} // namespace s4u
+
 } // namespace simgrid

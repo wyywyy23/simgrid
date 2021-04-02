@@ -161,4 +161,12 @@ void ClusterZone::create_links_for_node(ClusterCreationArgs* cluster, int id, in
 }
 } // namespace routing
 } // namespace kernel
+
+namespace s4u {
+NetZone* create_cluster_zone(const std::string& name)
+{
+  return (new kernel::routing::ClusterZone(name))->get_iface();
+}
+} // namespace s4u
+
 } // namespace simgrid

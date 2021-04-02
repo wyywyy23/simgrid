@@ -111,13 +111,19 @@ public:
   Host* set_state_profile(kernel::profile::Profile* p);
   Host* set_speed_profile(kernel::profile::Profile* p);
 
+  /** @brief Convert the CPU's speed from string to double */
+  static std::vector<double> convert_pstate_speed_vector(const std::vector<std::string>& speed_per_state);
   /**
    * @brief Set the CPU's speed
    *
    * @param speed_per_state list of powers for this processor (default power is at index 0)
    */
   Host* set_pstate_speed(const std::vector<double>& speed_per_state);
-  /** @brief Set the CPU's speed (string version) */
+  /**
+   * @brief Set the CPU's speed (string version)
+   *
+   * @throw std::invalid_argument if speed format is incorrect.
+   */
   Host* set_pstate_speed(const std::vector<std::string>& speed_per_state);
 
   /** @brief Get the peak computing speed in flops/s at the current pstate, NOT taking the external load into account.
@@ -165,6 +171,12 @@ public:
 
   void route_to(const Host* dest, std::vector<Link*>& links, double* latency) const;
   void route_to(const Host* dest, std::vector<kernel::resource::LinkImpl*>& links, double* latency) const;
+
+  /**
+   * @brief Seal this host
+   * No more configuration is allowed after the seal
+   */
+  void seal();
 
 #ifndef DOXYGEN
   XBT_ATTRIB_DEPRECATED_v331("Please use Comm::sendto()") void sendto(Host* dest, double byte_amount);

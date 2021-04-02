@@ -38,8 +38,6 @@ xbt::signal<void(ClusterCreationArgs const&)> on_cluster_creation;
 } // namespace kernel
 } // namespace simgrid
 
-static int surf_parse_models_setup_already_called = 0;
-
 /** The current NetZone in the parsing */
 static simgrid::kernel::routing::NetZoneImpl* current_routing = nullptr;
 static simgrid::kernel::routing::NetZoneImpl* routing_get_current()
@@ -59,15 +57,14 @@ void sg_platf_exit()
   simgrid::kernel::routing::on_cluster_creation.disconnect_slots();
   simgrid::s4u::Engine::on_platform_created.disconnect_slots();
 
-  /* make sure that we will reinit the models while loading the platf once reinited */
-  surf_parse_models_setup_already_called = 0;
   surf_parse_lex_destroy();
 }
 
 /** @brief Add a host to the current NetZone */
 void sg_platf_new_host(const simgrid::kernel::routing::HostCreationArgs* args)
 {
-  simgrid::s4u::Host* host = routing_get_current()->create_host(args->id, args->speed_per_pstate, args->core_amount);
+  simgrid::s4u::Host* host =
+      routing_get_current()->create_host(args->id, args->speed_per_pstate)->set_core_count(args->core_amount);
 
   if (args->properties) {
     host->set_properties(*args->properties);
@@ -82,6 +79,7 @@ void sg_platf_new_host(const simgrid::kernel::routing::HostCreationArgs* args)
   if (not args->coord.empty())
     new simgrid::kernel::routing::vivaldi::Coords(host->get_netpoint(), args->coord);
 
+  host->seal();
   simgrid::s4u::Host::on_creation(*host); // notify the signal
 
   /* When energy plugin is activated, changing the pstate requires to already have the HostEnergy extension whose
@@ -110,11 +108,12 @@ simgrid::kernel::routing::NetPoint* sg_platf_new_router(const std::string& name,
 
 static void sg_platf_new_link(const simgrid::kernel::routing::LinkCreationArgs* args, const std::string& link_name)
 {
-  simgrid::s4u::Link* link = routing_get_current()->create_link(link_name, args->bandwidths, args->policy);
+  simgrid::s4u::Link* link = routing_get_current()->create_link(link_name, args->bandwidths);
   if (args->properties)
     link->set_properties(*args->properties);
 
   link->get_impl() // this call to get_impl saves some simcalls but can be removed
+      ->set_sharing_policy(args->policy)
       ->set_state_profile(args->state_trace)
       ->set_latency_profile(args->latency_trace)
       ->set_bandwidth_profile(args->bandwidth_trace)
@@ -432,7 +431,7 @@ void sg_platf_new_peer(const simgrid::kernel::routing::PeerCreationArgs* peer)
 
   std::vector<double> speed_per_pstate;
   speed_per_pstate.push_back(peer->speed);
-  simgrid::s4u::Host* host = zone->create_host(peer->id, speed_per_pstate, 1);
+  simgrid::s4u::Host* host = zone->create_host(peer->id, speed_per_pstate);
 
   zone->set_peer_link(host->get_netpoint(), peer->bw_in, peer->bw_out, peer->coord);
 
@@ -441,50 +440,8 @@ void sg_platf_new_peer(const simgrid::kernel::routing::PeerCreationArgs* peer)
     host->set_state_profile(peer->state_trace);
   if (peer->speed_trace)
     host->set_speed_profile(peer->speed_trace);
+  host->seal();
   simgrid::s4u::Host::on_creation(*host); // notify the signal
-}
-
-/* Pick the right models for CPU, net and host, and call their model_init_preparse */
-static void surf_config_models_setup()
-{
-  std::string host_model_name    = simgrid::config::get_value<std::string>("host/model");
-  std::string network_model_name = simgrid::config::get_value<std::string>("network/model");
-  std::string cpu_model_name     = simgrid::config::get_value<std::string>("cpu/model");
-  std::string disk_model_name    = simgrid::config::get_value<std::string>("disk/model");
-
-  /* The compound host model is needed when using non-default net/cpu models */
-  if ((not simgrid::config::is_default("network/model") || not simgrid::config::is_default("cpu/model")) &&
-      simgrid::config::is_default("host/model")) {
-    host_model_name = "compound";
-    simgrid::config::set_value("host/model", host_model_name);
-  }
-
-  XBT_DEBUG("host model: %s", host_model_name.c_str());
-  if (host_model_name == "compound") {
-    xbt_assert(not cpu_model_name.empty(), "Set a cpu model to use with the 'compound' host model");
-    xbt_assert(not network_model_name.empty(), "Set a network model to use with the 'compound' host model");
-
-    int cpu_id = find_model_description(surf_cpu_model_description, cpu_model_name);
-    surf_cpu_model_description[cpu_id].model_init_preparse();
-
-    int network_id = find_model_description(surf_network_model_description, network_model_name);
-    surf_network_model_description[network_id].model_init_preparse();
-  }
-
-  XBT_DEBUG("Call host_model_init");
-  int host_id = find_model_description(surf_host_model_description, host_model_name);
-  surf_host_model_description[host_id].model_init_preparse();
-
-  XBT_DEBUG("Call vm_model_init");
-  /* ideally we should get back the pointer to CpuModel from model_init_preparse(), but this
-   * requires changing the declaration of surf_cpu_model_description.
-   * To be reviewed in the future */
-  surf_vm_model_init_HL13(
-      simgrid::s4u::Engine::get_instance()->get_netzone_root()->get_impl()->get_cpu_pm_model().get());
-
-  XBT_DEBUG("Call disk_model_init");
-  int disk_id = find_model_description(surf_disk_model_description, disk_model_name);
-  surf_disk_model_description[disk_id].model_init_preparse();
 }
 
 /**
@@ -527,9 +484,7 @@ sg_platf_create_zone(const simgrid::kernel::routing::ZoneCreationArgs* zone)
   }
   new_zone->set_parent(current_routing);
 
-  if (current_routing == nullptr) { /* it is the first one */
-    simgrid::s4u::Engine::get_instance()->set_netzone_root(new_zone->get_iface());
-  } else {
+  if (current_routing) {
     /* set the father behavior */
     if (current_routing->hierarchy_ == simgrid::kernel::routing::NetZoneImpl::RoutingMode::unset)
       current_routing->hierarchy_ = simgrid::kernel::routing::NetZoneImpl::RoutingMode::recursive;
@@ -562,20 +517,6 @@ simgrid::kernel::routing::NetZoneImpl* sg_platf_new_Zone_begin(const simgrid::ke
    * the default mode for each resource (CPU, network, etc)
    */
   auto* new_zone = sg_platf_create_zone(zone);
-
-  if (not surf_parse_models_setup_already_called) {
-    simgrid::s4u::Engine::on_platform_creation();
-
-    /* Initialize the surf models. That must be done after we got all config, and before we need the models.
-     * That is, after the last <config> tag, if any, and before the first of cluster|peer|zone|trace|trace_connect
-     *
-     * I'm not sure for <trace> and <trace_connect>, there may be a bug here
-     * (FIXME: check it out by creating a file beginning with one of these tags)
-     * but cluster and peer come down to zone creations, so putting this verification here is correct.
-     */
-    surf_parse_models_setup_already_called = 1;
-    surf_config_models_setup();
-  }
 
   _sg_cfg_init_status = 2; /* HACK: direct access to the global controlling the level of configuration to prevent
                             * any further config now that we created some real content */

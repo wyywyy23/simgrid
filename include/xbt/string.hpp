@@ -145,7 +145,7 @@ public:
   // Capacity
   size_t size() const { return str.len; }
   size_t length() const { return str.len; }
-  bool empty() const { return str.len != 0; }
+  bool empty() const { return str.len == 0; }
   void shrink_to_fit() { /* Being there, but doing nothing */}
 
   // Element access
@@ -174,7 +174,7 @@ public:
     return data()[i];
   }
   // Conversion
-  static string_data& to_string_data(string& s) { return s.str; }
+  static const string_data& to_string_data(const string& s) { return s.str; }
   operator std::string() const { return std::string(this->c_str(), this->size()); }
 
   // Iterators

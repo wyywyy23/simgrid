@@ -82,7 +82,7 @@ void FloydZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
 }
 
 void FloydZone::add_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoint* gw_dst,
-                          std::vector<resource::LinkImpl*>& link_list, bool symmetrical)
+                          const std::vector<resource::LinkImpl*>& link_list, bool symmetrical)
 {
   /* set the size of table routing */
   unsigned int table_size = get_table_size();
@@ -169,4 +169,12 @@ void FloydZone::do_seal()
 }
 } // namespace routing
 } // namespace kernel
+
+namespace s4u {
+NetZone* create_floyd_zone(const std::string& name)
+{
+  return (new kernel::routing::FloydZone(name))->get_iface();
+}
+} // namespace s4u
+
 } // namespace simgrid
