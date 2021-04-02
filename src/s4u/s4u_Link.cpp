@@ -93,7 +93,6 @@ Link* Link::set_bandwidth(double value)
   return this;
 }
 
-<<<<<<< HEAD
 /** wyy: more states */
 const char* Link::get_last_state_str() const {
   return to_c_str(last_state_);
