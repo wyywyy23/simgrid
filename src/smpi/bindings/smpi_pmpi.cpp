@@ -37,8 +37,18 @@ int PMPI_Init(int*, char***)
   xbt_assert(simgrid::s4u::Engine::is_initialized(),
              "Your MPI program was not properly initialized. The easiest is to use smpirun to start it.");
 
-  xbt_assert(not smpi_process()->initializing());
-  xbt_assert(not smpi_process()->initialized());
+  if(smpi_process()->initializing()){
+    XBT_WARN("SMPI is already initializing - MPI_Init called twice ?");
+    return MPI_ERR_OTHER;
+  }
+  if(smpi_process()->initialized()){
+    XBT_WARN("SMPI already initialized once - MPI_Init called twice ?");
+    return MPI_ERR_OTHER;
+  }
+  if(smpi_process()->finalized()){
+    XBT_WARN("SMPI already finalized");
+    return MPI_ERR_OTHER;
+  }
 
   simgrid::smpi::ActorExt::init();
   int rank_traced = simgrid::s4u::this_actor::get_pid();
@@ -114,11 +124,17 @@ int PMPI_Is_thread_main(int *flag)
   }
 }
 
-int PMPI_Abort(MPI_Comm /*comm*/, int /*errorcode*/)
+int PMPI_Abort(MPI_Comm comm, int /*errorcode*/)
 {
   smpi_bench_end();
-  // FIXME: should kill all processes in comm instead
-  XBT_WARN("MPI_Abort was called, something went probably wrong in this simulation ! Killing this process");
+  CHECK_COMM(1)
+  XBT_WARN("MPI_Abort was called, something went probably wrong in this simulation ! Killing all processes sharing the same MPI_COMM_WORLD");
+  for (int i = 0; i < comm->size(); i++){
+    smx_actor_t actor = comm->group()->actor(i)->get_impl();
+    if(actor != SIMIX_process_self())
+      simgrid::kernel::actor::simcall([actor] { actor->exit(); });
+  }
+  // now ourself
   smx_actor_t actor = SIMIX_process_self();
   simgrid::kernel::actor::simcall([actor] { actor->exit(); });
   return MPI_SUCCESS;
@@ -232,19 +248,9 @@ int PMPI_Keyval_create(MPI_Copy_function* copy_fn, MPI_Delete_function* delete_f
 }
 
 int PMPI_Keyval_free(int* keyval) {
+  CHECK_NULL(1, MPI_ERR_ARG, keyval)
+  CHECK_MPI_NULL(1, MPI_KEYVAL_INVALID, MPI_ERR_KEYVAL, *keyval)
   return simgrid::smpi::Keyval::keyval_free<simgrid::smpi::Comm>(keyval);
-}
-
-MPI_Errhandler PMPI_Errhandler_f2c(MPI_Fint errhan){
-  if(errhan==-1)
-    return MPI_ERRHANDLER_NULL;
-  return simgrid::smpi::Errhandler::f2c(errhan);
-}
-
-MPI_Fint PMPI_Errhandler_c2f(MPI_Errhandler errhan){
-  if(errhan==MPI_ERRHANDLER_NULL)
-    return -1;
-  return errhan->c2f();
 }
 
 int PMPI_Buffer_attach(void *buf, int size){
