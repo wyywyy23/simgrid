@@ -98,6 +98,37 @@ const char* Link::get_last_state_str() const {
   return to_c_str(last_state_);
 }
 
+// Action list of this link: action_id, link catering time start
+void Link::add_to_active_action_map(unsigned long id, double now, double time) {
+  xbt_assert(active_action_map.find(id) == active_action_map.end(), "Duplicate action ID!");
+
+  if (active_action_map.empty()) {
+    next_catering_start_ = time;
+  } else {
+    next_catering_start_ = std::max(std::min(next_catering_start_, time), now);
+  }
+  active_action_map[id] = std::make_pair(now, time);
+}
+
+void Link::remove_from_active_action_map(unsigned long id) {
+  xbt_assert(active_action_map.find(id) != active_action_map.end(), "Cannot remove an action that does not exist!");
+  active_action_map.erase(id);
+}
+
+bool Link::has_active_actions_before(double now) {
+  for (auto it = active_action_map.begin(); it != active_action_map.end(); ++it) {
+    if (it->second.first < now) {
+      return true;
+    }
+  }
+  return false;
+}
+
+double Link::get_catering_start_for_action(unsigned long id) {
+  xbt_assert(active_action_map.find(id) != active_action_map.end(), "Cannot find this action!");
+  return active_action_map[id].second;
+}
+
 /** active actions using this link */
 unsigned long Link::get_num_active_actions_before(double time){
   unsigned long num = 0;

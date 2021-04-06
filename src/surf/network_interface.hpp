@@ -35,6 +35,7 @@ class NetworkModel : public Model {
 public:
   static config::Flag<double> cfg_tcp_gamma;
   static config::Flag<bool> cfg_crosstraffic;
+  unsigned long num_of_actions = 0;
 
   using Model::Model;
   NetworkModel(const NetworkModel&) = delete;
@@ -205,6 +206,8 @@ public:
   double sharing_penalty_ = {};
   double size_ = 0.;
   double get_size() const { return size_; }
+  unsigned long id_ = 0;
+  unsigned long get_id() const { return id_; }
 
   std::vector<LinkImpl*> route_;
   std::vector<LinkImpl*> get_route() const { return route_; }

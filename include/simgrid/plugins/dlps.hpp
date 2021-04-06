@@ -21,8 +21,8 @@ public:
   void enable();
   void disable();
   void reset();
-  void update_on_comm_start(double);
-  void update_on_comm_end(double, double, double);
+  void update_on_comm_start(unsigned long, double);
+  void update_on_comm_end(unsigned long, double, double);
   void update_load();
 
   /// Getter methods.
@@ -38,7 +38,7 @@ public:
   double get_min_bytes_per_second();
   double get_max_bytes_per_second();
   
-  std::vector<std::tuple<double, unsigned long, double, double>> get_comm_trace() const { return comm_trace; }
+  std::vector<std::tuple<double, unsigned long, std::string, double, double, double>> get_comm_trace() const { return comm_trace; }
 
 private:
   s4u::Link* link_{};      /*< The link onto which this data is enabled*/
@@ -57,7 +57,7 @@ private:
 
   double data_rate_to_power(double rate, bool laser_on = true, bool tuning_on = true); /*< Compute power from data rate*/
 
-  std::vector<std::tuple<double, unsigned long, double, double>> comm_trace; /*< timestamp, state, usage, power, energy*/
+  std::vector<std::tuple<double, unsigned long, std::string, double, double, double>> comm_trace; /*< now, action_id, state, action_actual_start/finish, link_catering_start/finish, rate */
 };
 
 }

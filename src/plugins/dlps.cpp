@@ -76,7 +76,7 @@ double DLPS::data_rate_to_power(double data_rate, bool laser_on, bool tuning_on)
 
 }
 
-void DLPS::update_on_comm_start(double actual_start_time)
+void DLPS::update_on_comm_start(unsigned long action_id, double actual_start_time)
 {
   XBT_DEBUG("Updating load of link '%s' on communication start", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -84,113 +84,12 @@ void DLPS::update_on_comm_start(double actual_start_time)
              " Please enable your link with sg_dlps_enable before trying to access any of its load metrics.",
              link_->get_cname());
 
-  std::string link_name = link_->get_cname();
   double current_instantaneous_bytes_per_second = link_->get_usage();
   double now                                    = surf_get_clock();
 
   s4u::Link::State last_state = link_->get_last_state();
 
-  // Update minimum/maximum observed values if needed
-  min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
-  max_bytes_per_second_ = std::max(max_bytes_per_second_, current_instantaneous_bytes_per_second);
-
-  // Update cumulated load
-  double duration_since_last_update = now - last_updated_;
-  double bytes_since_last_update    = 0.;
-  XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
-            duration_since_last_update);
-  cumulated_bytes_ += bytes_since_last_update;
-
-  // Update cumulated energy
-  double current_instantaneous_power = 0.0;
-  double energy_since_last_update    = 0.0;
-
-  if (last_updated_ < 0) { // if it is the first communication, "on-off" and "full" will be OFF before this
-    xbt_assert(current_instantaneous_bytes_per_second == 0, "Link usage should be 0 if this is the first communication.");
-    if (dlps_mode_ == "none") {
-      // energy
-      current_instantaneous_power = data_rate_to_power(link_->get_bandwidth() * sg_bandwidth_factor);
-      energy_since_last_update    = now * current_instantaneous_power;
-      // trace
-//      comm_trace.push_back(std::make_tuple(0.0, "ON", 0.0, 0.0, 0.0));
-//      comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-    } else if (dlps_mode_ == "laser") {
-      // energy
-      current_instantaneous_power = data_rate_to_power(0.0, false, true);
-      energy_since_last_update    = now * current_instantaneous_power;
-      // trace
-//      comm_trace.push_back(std::make_tuple(0.0, "STANDBY", 0.0, 0.0, 0.0));
-//      comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-    } else {
-      // no energy consumption before the first communication
-      // trace
-//      comm_trace.push_back(std::make_tuple(0.0, "OFF", 0.0, 0.0, 0.0));
-//      comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, 0.0, 0.0));
-    }
-  } else { // last_updated_ >= 0
-    if (link_->get_num_active_actions_at(now) == 1 && now > last_updated_) { // The first of several consecutive start, compute the energy after last end
-      xbt_assert(current_instantaneous_bytes_per_second == 0, "Link usage should be 0 if this is the first of several consecutive communication.");
-      if (dlps_mode_ == "full") {
-	// ready energy
-        double ready_time = std::min(duration_since_last_update, idle_threshold_laser_);
-        double ready_power = data_rate_to_power(0.0, true, true);
-        energy_since_last_update += ready_time * ready_power;
-        // trace
-	if (duration_since_last_update <= idle_threshold_laser_) { // idle not long enough to go into standby
-//	  comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, ready_power, cumulated_energy_ + energy_since_last_update));
-	} else { // idle long enough to go into standby
-//	  comm_trace.push_back(std::make_tuple(last_updated_ + idle_threshold_laser_, "STANDBY", 0.0, ready_power, cumulated_energy_ + energy_since_last_update));
-	  // standby energy
-          double standby_time = std::min(duration_since_last_update - idle_threshold_laser_, idle_threshold_tuning_ - idle_threshold_laser_);
-	  double standby_power = data_rate_to_power(0.0, false, true);
-          energy_since_last_update += standby_time * standby_power;
-	  // trace
-	  if (duration_since_last_update <= idle_threshold_tuning_) { // idle not long enough to go into off
-//	    comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, standby_power, cumulated_energy_ + energy_since_last_update));
-	  } else { // idle long enough to go into off
-//	    comm_trace.push_back(std::make_tuple(last_updated_ + idle_threshold_tuning_, "OFF", 0.0, standby_power, cumulated_energy_ + energy_since_last_update));
-//	    comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, 0.0, cumulated_energy_ + energy_since_last_update));
-	  }
-	}
-      } else if (dlps_mode_ == "laser") {
-	// ready energy
-        double ready_time = std::min(duration_since_last_update, idle_threshold_laser_);
-	double ready_power = data_rate_to_power(0.0, true, true);
-	energy_since_last_update += ready_time * ready_power;
-	// trace
-	if (duration_since_last_update <= idle_threshold_laser_) { // idle not long enough to go into standby
-//	  comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, ready_power, cumulated_energy_ + energy_since_last_update));
-	} else { // idle long enough to go into standby
-//	  comm_trace.push_back(std::make_tuple(last_updated_ + idle_threshold_laser_, "STANDBY", 0.0, ready_power, cumulated_energy_ + energy_since_last_update));
-	  // standby energy
-          double standby_time = std::max(duration_since_last_update - idle_threshold_laser_, 0.0);
-	  double standby_power = data_rate_to_power(0.0, false, true);
-	  energy_since_last_update += standby_time * standby_power;
-	  // trace
-//	  comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, 0.0, cumulated_energy_ + energy_since_last_update));
-	}
-      } else if (dlps_mode_ == "on-off") {
-        // no energy after last end
-//	comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, 0.0, cumulated_energy_));
-      } else {
-        current_instantaneous_power = data_rate_to_power(link_->get_bandwidth() * sg_bandwidth_factor);
-        energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
-//	comm_trace.push_back(std::make_tuple(now, "STARTING", 0.0, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-      }
-    } else { // Not the first of several consecutive start
-      current_instantaneous_power = data_rate_to_power(
-        (dlps_mode_ == "full" || dlps_mode_ == "laser" || dlps_mode_ == "on-off") ?
-        current_instantaneous_bytes_per_second : link_->get_bandwidth() * sg_bandwidth_factor);
-      energy_since_last_update    = duration_since_last_update * current_instantaneous_power;
-//      comm_trace.push_back(std::make_tuple(now, "STARTING", current_instantaneous_bytes_per_second, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-    }
-  }
-
-  comm_trace.push_back(std::make_tuple(link_->get_next_wake(), link_->get_num_active_actions_at(now), current_instantaneous_bytes_per_second, current_instantaneous_power));
-
-  XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
-            duration_since_last_update);
-  cumulated_energy_ += energy_since_last_update;
+  comm_trace.push_back(std::make_tuple(now, action_id, "STARTING", actual_start_time, link_->get_catering_start_for_action(action_id), current_instantaneous_bytes_per_second));
 
   // Update idle thresholds based on values in the circular buffer
   /* if (dlps_mode_ == "full" || dlps_mode_ == "laser") {
@@ -211,10 +110,9 @@ void DLPS::update_on_comm_start(double actual_start_time)
 
   last_updated_ = now;
 
-  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
-void DLPS::update_on_comm_end(double actual_start_time, double actual_transfer_end_time, double size)
+void DLPS::update_on_comm_end(unsigned long action_id, double actual_transfer_end_time, double size)
 {
   XBT_DEBUG("Updating link '%s' on communication end", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -222,9 +120,8 @@ void DLPS::update_on_comm_end(double actual_start_time, double actual_transfer_e
              " Please enable your link with sg_dlps_enable before trying to access any of its metrics.",
              link_->get_cname());
 
-  std::string link_name = link_->get_cname();
   double current_instantaneous_bytes_per_second = link_->get_usage();
-  double now                                    = actual_transfer_end_time;
+  double now                                    = surf_get_clock();
 
   s4u::Link::State last_state = link_->get_last_state();
 
@@ -240,48 +137,14 @@ void DLPS::update_on_comm_end(double actual_start_time, double actual_transfer_e
       break;
   }
 
-  // Update minimum/maximum observed values if needed
-  min_bytes_per_second_ = std::min(min_bytes_per_second_, current_instantaneous_bytes_per_second);
-  max_bytes_per_second_ = std::max(max_bytes_per_second_, current_instantaneous_bytes_per_second);
-
   // Update cumulated load
-  double duration_since_last_update = now - std::max(last_updated_, actual_start_time);
   double bytes_since_last_update    = size;
-  XBT_DEBUG("Cumulated %g bytes since last update (duration of %g seconds)", bytes_since_last_update,
-            duration_since_last_update);
   cumulated_bytes_ += bytes_since_last_update;
 
-  // Update cumulated energy
-  double current_instantaneous_power = 0.0;
-  double energy_since_last_update    = 0.0;
-
-  current_instantaneous_power = data_rate_to_power(
-      (dlps_mode_ == "full" || dlps_mode_ == "laser" || dlps_mode_ == "on-off") ?
-      current_instantaneous_bytes_per_second : link_->get_bandwidth() * sg_bandwidth_factor);
-
-  // delay energy
-  double delay_time = std::max(actual_start_time - last_updated_, 0.0);
-  energy_since_last_update += current_instantaneous_power * delay_time;
-  // trace
-//  comm_trace.push_back(std::make_tuple(last_updated_ + delay_time, "STARTED", current_instantaneous_bytes_per_second, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-  // actual transfer energy
-  double transfer_time = now - actual_start_time;
-  energy_since_last_update += current_instantaneous_power * transfer_time;
-  // trace
-//  std::string to_state = (dlps_mode_ == "full" || dlps_mode_ == "laser") ? "READY" : (
-//			  dlps_mode_ == "on-off" ? "OFF" : "ON");
-//  comm_trace.push_back(std::make_tuple(now, to_state, current_instantaneous_bytes_per_second, current_instantaneous_power, cumulated_energy_ + energy_since_last_update));
-
-  comm_trace.push_back(std::make_tuple(actual_transfer_end_time, link_->get_num_active_actions_at(actual_transfer_end_time), current_instantaneous_bytes_per_second, current_instantaneous_power));
-
-
-  XBT_DEBUG("Cumulated %g J since last update (duration of %g seconds)", energy_since_last_update,
-            duration_since_last_update);
-  cumulated_energy_ += energy_since_last_update;
+  comm_trace.push_back(std::make_tuple(now, action_id, "FINISHED", now, actual_transfer_end_time, current_instantaneous_bytes_per_second));
 
   last_updated_ = now;
 
-  xbt_assert(bytes_since_last_update >= 0, "DLPS plugin inconsistency: negative amount of bytes is accumulated.");
 }
 
 s4u::Link* DLPS::get_s4u_link() {
@@ -320,7 +183,6 @@ double DLPS::get_cumulated_bytes()
 
 double DLPS::get_cumulated_energy()
 {
-  update_on_comm_start(surf_get_clock());
   return cumulated_energy_;
 }
 
@@ -350,16 +212,14 @@ using simgrid::plugin::DLPS;
 
 /* **************************** events  callback *************************** */
 static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
-{
-  // XBT_DEBUG("on_communicate is called");
-  
+{ 
   double now = surf_get_clock();
   for (auto* link : action.get_route()) {
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
-        XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions_at(now));
-        dlps->update_on_comm_start(action.get_actual_start_time());
+        XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions());
+        dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time());
       }
     }
   }
@@ -380,10 +240,11 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
         if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED) {
 
 	  double actual_transfer_end_time = action.get_actual_start_time() + link_idx * transfer_time_per_link;
-          link->get_iface()->remove_active_action_at(action.get_start_time());
+          dlps->update_on_comm_end(action.get_id(), actual_transfer_end_time, action.get_size());
+          link->get_iface()->remove_from_active_action_map(action.get_id());
           link->get_iface()->set_last_busy(actual_transfer_end_time);
 
-          if (link->get_iface()->get_num_active_actions_at(actual_transfer_end_time) == 0) {
+          if (link->get_iface()->get_num_active_actions() == 0) {
             if (dlps->get_dlps_mode() == "full") {
               link->get_iface()->set_next_ready(actual_transfer_end_time);
               link->get_iface()->set_next_standby(actual_transfer_end_time + dlps->get_idle_threshold_laser());
@@ -396,8 +257,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
               link->get_iface()->set_next_off(actual_transfer_end_time);
             }
           }
-          dlps->update_on_comm_end(action.get_actual_start_time(), actual_transfer_end_time, action.get_size());
-	  XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions_at(now));
+	  XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions());
 	}
       }
     }
