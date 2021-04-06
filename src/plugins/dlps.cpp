@@ -218,7 +218,7 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
-        XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions());
+        XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
         dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time());
       }
     }
@@ -257,7 +257,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
               link->get_iface()->set_next_off(actual_transfer_end_time);
             }
           }
-	  XBT_INFO("%.17f,%ld\n", now, link->get_iface()->get_num_active_actions());
+	  XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
 	}
       }
     }
