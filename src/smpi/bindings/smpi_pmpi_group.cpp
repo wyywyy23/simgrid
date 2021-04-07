@@ -18,8 +18,10 @@ int PMPI_Group_free(MPI_Group * group)
 {
   CHECK_NULL(1, MPI_ERR_ARG, group)
   CHECK_MPI_NULL(1, MPI_GROUP_NULL, MPI_ERR_GROUP, *group)
-  if(*group != MPI_COMM_WORLD->group() && *group != MPI_GROUP_EMPTY)
+  if(*group != MPI_COMM_WORLD->group() && *group != MPI_GROUP_EMPTY){
+    (*group)->mark_as_deleted();
     simgrid::smpi::Group::unref(*group);
+  }
   *group = MPI_GROUP_NULL;
   return MPI_SUCCESS;
 }
@@ -138,7 +140,9 @@ int PMPI_Group_excl(MPI_Group group, int n, const int *ranks, MPI_Group * newgro
     return MPI_ERR_ARG;
   } else if (n == 0) {
     *newgroup = group;
-    if (group != MPI_COMM_WORLD->group() && group != MPI_COMM_SELF->group() && group != MPI_GROUP_EMPTY)
+    if (group != MPI_GROUP_EMPTY &&
+        group != MPI_COMM_WORLD->group() &&
+        ((smpi_process()->comm_self_is_set()) || (group != MPI_COMM_SELF->group())))
       group->ref();
     return MPI_SUCCESS;
   } else if (n == group->size()) {
@@ -198,8 +202,9 @@ int PMPI_Group_range_excl(MPI_Group group, int n, int ranges[][3], MPI_Group * n
   }
   if (n == 0) {
     *newgroup = group;
-    if (group != MPI_COMM_WORLD->group() && group != MPI_COMM_SELF->group() &&
-        group != MPI_GROUP_EMPTY)
+    if (group != MPI_GROUP_EMPTY &&
+        group != MPI_COMM_WORLD->group() &&
+        ((smpi_process()->comm_self_is_set()) || (group != MPI_COMM_SELF->group())))
       group->ref();
     return MPI_SUCCESS;
   } else {

@@ -13,9 +13,7 @@
 #include "xbt/file.hpp"
 #include <boost/tokenizer.hpp>
 #include "smpi_config.hpp"
-#include "smpi_f2c.hpp"
 #include "src/simix/smx_private.hpp"
-
 #include <algorithm>
 
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(smpi_utils, smpi, "Logging specific to SMPI (utils)");
@@ -38,6 +36,7 @@ struct MaxMalloc {
   std::string file;
 };
 MaxMalloc max_malloc;
+F2C* current_handle = nullptr;
 
 std::vector<s_smpi_factor_t> parse_factor(const std::string& smpi_coef_string)
 {
@@ -152,15 +151,20 @@ void print_memory_analysis()
       bool truncate = max < handles.size();
       if (truncate)
         handles.resize(max);
+      bool printed_advice=false;
       for (const auto& p : handles) {
-        if (xbt_log_no_loc) {
-          XBT_WARN("Leaked handle of type %s", boost::core::demangle(typeid(*p.second).name()).c_str());
+        if (xbt_log_no_loc || p.second->call_location().empty()) {
+          if (!printed_advice){
+            XBT_INFO("To get more information (location of allocations), compile your code with -trace-call-location flag of smpicc/f90");
+            printed_advice=true;
+          }
+          XBT_INFO("Leaked handle of type %s", p.second->name().c_str());
         } else {
-          XBT_WARN("Leaked handle of type %s at %p", boost::core::demangle(typeid(*p.second).name()).c_str(), p.second);
+          XBT_INFO("Leaked handle of type %s at %s", p.second->name().c_str(), p.second->call_location().c_str());
         }
       }
       if (truncate)
-        XBT_WARN("(more handle leaks hidden as you wanted to see only %lu of them)", max);
+        XBT_INFO("(more handle leaks hidden as you wanted to see only %lu of them)", max);
     }
   }
 
@@ -179,6 +183,21 @@ void print_memory_analysis()
       XBT_INFO("%lu bytes were automatically shared between processes, in %u calls\n", total_shared_size, total_shared_calls);
   }
 }
+
+void set_current_handle(F2C* handle){
+  current_handle=handle;
+}
+
+void print_current_handle(){
+  if(current_handle){
+    if(current_handle->call_location().empty())
+      XBT_INFO("To get handle location information, pass -trace-call-location flag to smpicc/f90 as well");
+    else
+      XBT_INFO("Handle %s was allocated by a call at %s", current_handle->name().c_str(),
+               (char*)(current_handle->call_location().c_str()));
+  }
+}
+
 }
 }
 } // namespace simgrid

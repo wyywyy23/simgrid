@@ -94,7 +94,7 @@ int PMPI_Start(MPI_Request * request)
   int retval = 0;
 
   smpi_bench_end();
-  CHECK_REQUEST(1)
+  CHECK_REQUEST_VALID(1)
   if ( *request == MPI_REQUEST_NULL) {
     retval = MPI_ERR_REQUEST;
   } else {
@@ -163,6 +163,7 @@ int PMPI_Request_free(MPI_Request * request)
 
   smpi_bench_end();
   if (*request != MPI_REQUEST_NULL) {
+    (*request)->mark_as_deleted();
     simgrid::smpi::Request::unref(request);
     *request = MPI_REQUEST_NULL;
     retval = MPI_SUCCESS;
@@ -730,7 +731,7 @@ int PMPI_Cancel(MPI_Request* request)
   int retval = 0;
 
   smpi_bench_end();
-  CHECK_REQUEST(1)
+  CHECK_REQUEST_VALID(1)
   if (*request == MPI_REQUEST_NULL) {
     retval = MPI_ERR_REQUEST;
   } else {

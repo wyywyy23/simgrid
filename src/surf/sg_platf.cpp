@@ -63,24 +63,22 @@ void sg_platf_exit()
 /** @brief Add a host to the current NetZone */
 void sg_platf_new_host(const simgrid::kernel::routing::HostCreationArgs* args)
 {
-  simgrid::s4u::Host* host =
-      routing_get_current()->create_host(args->id, args->speed_per_pstate)->set_core_count(args->core_amount);
+  simgrid::s4u::Host* host = routing_get_current()->create_host(args->id, args->speed_per_pstate);
+
+  if (not args->coord.empty())
+    new simgrid::kernel::routing::vivaldi::Coords(host->get_netpoint(), args->coord);
 
   if (args->properties) {
     host->set_properties(*args->properties);
     delete args->properties;
   }
+  host->get_impl()->set_disks(args->disks);
 
-  host->get_impl()->set_disks(args->disks, host);
-
-  /* Change from the defaults */
-  host->set_state_profile(args->state_trace)->set_speed_profile(args->speed_trace);
-
-  if (not args->coord.empty())
-    new simgrid::kernel::routing::vivaldi::Coords(host->get_netpoint(), args->coord);
+  host->pimpl_cpu->set_core_count(args->core_amount)
+      ->set_state_profile(args->state_trace)
+      ->set_speed_profile(args->speed_trace);
 
   host->seal();
-  simgrid::s4u::Host::on_creation(*host); // notify the signal
 
   /* When energy plugin is activated, changing the pstate requires to already have the HostEnergy extension whose
    * allocation is triggered by the on_creation signal. Then set_pstate must be called after the signal emition */
@@ -91,8 +89,6 @@ void sg_platf_new_host(const simgrid::kernel::routing::HostCreationArgs* args)
 /** @brief Add a "router" to the network element list */
 simgrid::kernel::routing::NetPoint* sg_platf_new_router(const std::string& name, const char* coords)
 {
-  if (current_routing->hierarchy_ == simgrid::kernel::routing::NetZoneImpl::RoutingMode::unset)
-    current_routing->hierarchy_ = simgrid::kernel::routing::NetZoneImpl::RoutingMode::base;
   xbt_assert(nullptr == simgrid::s4u::Engine::get_instance()->netpoint_by_name_or_null(name),
              "Refusing to create a router named '%s': this name already describes a node.", name.c_str());
 
@@ -175,37 +171,18 @@ void sg_platf_new_cluster(simgrid::kernel::routing::ClusterCreationArgs* cluster
 
   for (int const& i : *cluster->radicals) {
     std::string host_id = std::string(cluster->prefix) + std::to_string(i) + cluster->suffix;
-    std::string link_id = std::string(cluster->id) + "_link_" + std::to_string(i);
 
-    XBT_DEBUG("<host\tid=\"%s\"\tpower=\"%f\">", host_id.c_str(), cluster->speeds.front());
+    XBT_DEBUG("<host\tid=\"%s\"\tspeed=\"%f\">", host_id.c_str(), cluster->speeds.front());
+    simgrid::s4u::Host* host =
+        current_zone->create_host(host_id, cluster->speeds)->set_core_count(cluster->core_amount);
 
-    simgrid::kernel::routing::HostCreationArgs host;
-    host.id = host_id;
-    if ((cluster->properties != nullptr) && (not cluster->properties->empty())) {
-      host.properties = new std::unordered_map<std::string, std::string>();
+    if ((cluster->properties != nullptr) && (not cluster->properties->empty()))
+      host->set_properties(*cluster->properties);
+    host->seal();
 
-      for (auto const& elm : *cluster->properties)
-        host.properties->insert({elm.first, elm.second});
-    }
-
-    host.speed_per_pstate = cluster->speeds;
-    /* wyy: add a local disk to each host in the cluster */
-//    std::vector<simgrid::kernel::resource::DiskImpl*> disks;
-//    simgrid::kernel::routing::DiskCreationArgs disk;
-//    disk.id = "local_disk";
-//    disk.read_bw = 1000000000000000000;// 16000000000
-//    disk.write_bw = 1000000000000000000;// 16000000000
-//    disk.properties = new std::unordered_map<std::string, std::string>();
-//    disk.properties->insert(std::make_pair<std::string, std::string>("size", "1000EB"));// 14304GiB
-//    disk.properties->insert(std::make_pair<std::string, std::string>("mount", "/"));
-//    disks.push_back(sg_platf_new_disk(&disk));
-//    host.disks = disks;
-    host.pstate           = 0;
-    host.core_amount      = cluster->core_amount;
-    host.coord            = "";
-    sg_platf_new_host(&host);
     XBT_DEBUG("</host>");
 
+    std::string link_id = std::string(cluster->id) + "_link_" + std::to_string(i);
     XBT_DEBUG("<link\tid=\"%s\"\tbw=\"%f\"\tlat=\"%f\"/>", link_id.c_str(), cluster->bw, cluster->lat);
 
     // All links are saved in a matrix;
@@ -215,41 +192,28 @@ void sg_platf_new_cluster(simgrid::kernel::routing::ClusterCreationArgs* cluster
     // other columns are to store one or more link for the node
 
     // add a loopback link
-    const simgrid::s4u::Link* linkUp   = nullptr;
-    const simgrid::s4u::Link* linkDown = nullptr;
     if (cluster->loopback_bw > 0 || cluster->loopback_lat > 0) {
-      std::string tmp_link = link_id + "_loopback";
-      XBT_DEBUG("<loopback\tid=\"%s\"\tbw=\"%f\"/>", tmp_link.c_str(), cluster->loopback_bw);
+      std::string loopback_name = link_id + "_loopback";
+      XBT_DEBUG("<loopback\tid=\"%s\"\tbw=\"%f\"/>", loopback_name.c_str(), cluster->loopback_bw);
 
-      simgrid::kernel::routing::LinkCreationArgs link;
-      link.id = tmp_link;
-      link.bandwidths.push_back(cluster->loopback_bw);
-      link.latency = cluster->loopback_lat;
-      link.policy  = simgrid::s4u::Link::SharingPolicy::FATPIPE;
-      sg_platf_new_link(&link);
-      linkUp   = simgrid::s4u::Link::by_name_or_null(tmp_link);
-      linkDown = simgrid::s4u::Link::by_name_or_null(tmp_link);
+      simgrid::s4u::Link* loopback = current_zone->create_link(loopback_name, std::vector<double>{cluster->loopback_bw})
+                                         ->set_sharing_policy(simgrid::s4u::Link::SharingPolicy::FATPIPE)
+                                         ->set_latency(cluster->loopback_lat);
+      loopback->seal();
 
-      current_zone->add_private_link_at(current_zone->node_pos(rankId), {linkUp->get_impl(), linkDown->get_impl()});
+      current_zone->add_private_link_at(current_zone->node_pos(rankId), {loopback->get_impl(), loopback->get_impl()});
     }
 
     // add a limiter link (shared link to account for maximal bandwidth of the node)
-    linkUp   = nullptr;
-    linkDown = nullptr;
     if (cluster->limiter_link > 0) {
-      std::string tmp_link = std::string(link_id) + "_limiter";
-      XBT_DEBUG("<limiter\tid=\"%s\"\tbw=\"%f\"/>", tmp_link.c_str(), cluster->limiter_link);
+      std::string limiter_name = std::string(link_id) + "_limiter";
+      XBT_DEBUG("<limiter\tid=\"%s\"\tbw=\"%f\"/>", limiter_name.c_str(), cluster->limiter_link);
 
-      simgrid::kernel::routing::LinkCreationArgs link;
-      link.id = tmp_link;
-      link.bandwidths.push_back(cluster->limiter_link);
-      link.latency = 0;
-      link.policy  = simgrid::s4u::Link::SharingPolicy::SHARED;
-      sg_platf_new_link(&link);
-      linkDown = simgrid::s4u::Link::by_name_or_null(tmp_link);
-      linkUp   = linkDown;
+      simgrid::s4u::Link* limiter = current_zone->create_link(limiter_name, std::vector<double>{cluster->limiter_link});
+      limiter->seal();
+
       current_zone->add_private_link_at(current_zone->node_pos_with_loopback(rankId),
-                                        {linkUp->get_impl(), linkDown->get_impl()});
+                                        {limiter->get_impl(), limiter->get_impl()});
     }
 
     // call the cluster function that adds the others links
@@ -271,16 +235,15 @@ void sg_platf_new_cluster(simgrid::kernel::routing::ClusterCreationArgs* cluster
 
   // Make the backbone
   if ((cluster->bb_bw > 0) || (cluster->bb_lat > 0)) {
-    simgrid::kernel::routing::LinkCreationArgs link;
-    link.id = std::string(cluster->id) + "_backbone";
-    link.bandwidths.push_back(cluster->bb_bw);
-    link.latency = cluster->bb_lat;
-    link.policy  = cluster->bb_sharing_policy;
+    std::string backbone_name = std::string(cluster->id) + "_backbone";
+    XBT_DEBUG("<link\tid=\"%s\" bw=\"%f\" lat=\"%f\"/>", backbone_name.c_str(), cluster->bb_bw, cluster->bb_lat);
 
-    XBT_DEBUG("<link\tid=\"%s\" bw=\"%f\" lat=\"%f\"/>", link.id.c_str(), cluster->bb_bw, cluster->bb_lat);
-    sg_platf_new_link(&link);
+    simgrid::s4u::Link* backbone = current_zone->create_link(backbone_name, std::vector<double>{cluster->bb_bw})
+                                       ->set_sharing_policy(cluster->bb_sharing_policy)
+                                       ->set_latency(cluster->bb_lat);
+    backbone->seal();
 
-    routing_cluster_add_backbone(simgrid::s4u::Link::by_name(link.id)->get_impl());
+    routing_cluster_add_backbone(backbone->get_impl());
   }
 
   XBT_DEBUG("</zone>");
@@ -429,19 +392,13 @@ void sg_platf_new_peer(const simgrid::kernel::routing::PeerCreationArgs* peer)
   auto* zone = dynamic_cast<simgrid::kernel::routing::VivaldiZone*>(current_routing);
   xbt_assert(zone, "<peer> tag can only be used in Vivaldi netzones.");
 
-  std::vector<double> speed_per_pstate;
-  speed_per_pstate.push_back(peer->speed);
-  simgrid::s4u::Host* host = zone->create_host(peer->id, speed_per_pstate);
+  simgrid::s4u::Host* host = zone->create_host(peer->id, std::vector<double>{peer->speed})
+                                 ->set_state_profile(peer->state_trace)
+                                 ->set_speed_profile(peer->speed_trace);
 
   zone->set_peer_link(host->get_netpoint(), peer->bw_in, peer->bw_out, peer->coord);
 
-  /* Change from the defaults */
-  if (peer->state_trace)
-    host->set_state_profile(peer->state_trace);
-  if (peer->speed_trace)
-    host->set_speed_profile(peer->speed_trace);
   host->seal();
-  simgrid::s4u::Host::on_creation(*host); // notify the signal
 }
 
 /**
@@ -484,19 +441,6 @@ sg_platf_create_zone(const simgrid::kernel::routing::ZoneCreationArgs* zone)
   }
   new_zone->set_parent(current_routing);
 
-  if (current_routing) {
-    /* set the father behavior */
-    if (current_routing->hierarchy_ == simgrid::kernel::routing::NetZoneImpl::RoutingMode::unset)
-      current_routing->hierarchy_ = simgrid::kernel::routing::NetZoneImpl::RoutingMode::recursive;
-    /* add to the sons dictionary */
-    current_routing->add_child(new_zone);
-    /* set models from parent netzone */
-    new_zone->set_network_model(current_routing->get_network_model());
-    new_zone->set_cpu_pm_model(current_routing->get_cpu_pm_model());
-    new_zone->set_cpu_vm_model(current_routing->get_cpu_vm_model());
-    new_zone->set_disk_model(current_routing->get_disk_model());
-    new_zone->set_host_model(current_routing->get_host_model());
-  }
   return new_zone;
 }
 

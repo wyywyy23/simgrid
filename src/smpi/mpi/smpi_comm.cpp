@@ -170,13 +170,22 @@ void Comm::get_name(char* name, int* len) const
   if(this == MPI_COMM_WORLD && name_.empty()) {
     strncpy(name, "MPI_COMM_WORLD", 15);
     *len = 14;
-  } else if(this == MPI_COMM_SELF && name_.empty()) {
-    strncpy(name, "MPI_COMM_SELF", 14);
-    *len = 13;
   } else {
     *len = snprintf(name, MPI_MAX_NAME_STRING+1, "%s", name_.c_str());
   }
 }
+
+std::string Comm::name() const
+{
+  int size;
+  char name[MPI_MAX_NAME_STRING+1];
+  this->get_name(name, &size);
+  if (name[0]=='\0')
+    return std::string("MPI_Comm");
+  else
+    return std::string(name);
+}
+
 
 void Comm::set_name (const char* name)
 {
@@ -339,7 +348,7 @@ void Comm::unref(Comm* comm){
 
   if(comm->refcount_==0){
     if(simgrid::smpi::F2C::lookup() != nullptr)
-      F2C::free_f(comm->c2f());
+      F2C::free_f(comm->f2c_id());
     comm->cleanup_smp();
     comm->cleanup_attr<Comm>();
     if (comm->info_ != MPI_INFO_NULL)

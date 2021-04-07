@@ -78,7 +78,7 @@ Win::~Win(){
   if(allocated_ !=0)
     xbt_free(base_);
 
-  F2C::free_f(this->c2f());
+  F2C::free_f(this->f2c_id());
   cleanup_attr<Win>();
 }
 
@@ -217,7 +217,8 @@ int Win::put(const void *origin_addr, int origin_count, MPI_Datatype origin_data
   }
 
   if(target_count*target_datatype->get_extent()>recv_win->size_){
-    XBT_WARN("Trying to put more than the window size - Bailing out.");
+    XBT_WARN("MPI_Put: Trying to put %zd, which is more than the window size on target process %d : %zd - Bailing out.",
+    target_count*target_datatype->get_extent(), target_rank, recv_win->size_);
     return MPI_ERR_RMA_RANGE;
   }
 
@@ -279,7 +280,8 @@ int Win::get( void *origin_addr, int origin_count, MPI_Datatype origin_datatype,
   }
 
   if(target_count*target_datatype->get_extent()>send_win->size_){
-    XBT_WARN("Trying to get more than the window size - Bailing out.");
+    XBT_WARN("MPI_Get: Trying to get %zd, which is more than the window size on target process %d : %zd - Bailing out.",
+    target_count*target_datatype->get_extent(), target_rank, send_win->size_);
     return MPI_ERR_RMA_RANGE;
   }
 
@@ -341,7 +343,8 @@ int Win::accumulate(const void *origin_addr, int origin_count, MPI_Datatype orig
   //FIXME: local version
 
   if(target_count*target_datatype->get_extent()>recv_win->size_){
-    XBT_WARN("Trying to accumulate more than the window size - Bailing out.");
+    XBT_WARN("MPI_Accumulate: Trying to accumulate %zd, which is more than the window size on target process %d : %zd - Bailing out.",
+    target_count*target_datatype->get_extent(), target_rank, recv_win->size_);
     return MPI_ERR_RMA_RANGE;
   }
 
@@ -398,7 +401,8 @@ int Win::get_accumulate(const void* origin_addr, int origin_count, MPI_Datatype 
   }
 
   if(target_count*target_datatype->get_extent()>send_win->size_){
-    XBT_WARN("Trying to get_accumulate more than the window size - Bailing out.");
+    XBT_WARN("MPI_Get_accumulate: Trying to get_accumulate %zd, which is more than the window size on target process %d : %zd - Bailing out.",
+    target_count*target_datatype->get_extent(), target_rank, send_win->size_);
     return MPI_ERR_RMA_RANGE;
   }
 

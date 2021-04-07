@@ -56,7 +56,8 @@ public:
   void set_property(const std::string& key, const std::string& value);
 
   std::vector<NetZone*> get_children() const;
-  NetZone* add_child(const NetZone* new_zone);
+  XBT_ATTRIB_DEPRECATED_v332("Please use set_parent() to manage NetZone's relationship") NetZone* add_child(
+      NetZone* new_zone);
 
   void extract_xbt_graph(const s_xbt_graph_t* graph, std::map<std::string, xbt_node_t, std::less<>>* nodes,
                          std::map<std::string, xbt_edge_t, std::less<>>* edges);
@@ -127,7 +128,6 @@ public:
    *
    * @param name Link name
    * @param bandwidths Link's speed (vector for wifi links)
-   * @param policy Link sharing policy
    * @throw std::invalid_argument if bandwidth format is incorrect.
    */
   s4u::Link* create_link(const std::string& name, const std::vector<double>& bandwidths);

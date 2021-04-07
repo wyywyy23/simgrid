@@ -9,6 +9,8 @@
 #include "private.hpp"
 #include "simgrid/Exception.hpp"
 #include "simgrid/s4u/Exec.hpp"
+#include "simgrid/s4u/Mutex.hpp"
+#include "simgrid/s4u/ConditionVariable.hpp"
 #include "smpi_comm.hpp"
 #include "smpi_datatype.hpp"
 #include "smpi_host.hpp"
@@ -91,7 +93,7 @@ void Request::unref(MPI_Request* request)
       Op::unref(&(*request)->op_);
 
     (*request)->print_request("Destroying");
-    F2C::free_f((*request)->c2f());
+    F2C::free_f((*request)->f2c_id());
     delete *request;
     *request = MPI_REQUEST_NULL;
   } else {
