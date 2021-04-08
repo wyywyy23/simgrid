@@ -345,7 +345,7 @@ void sg_config_init(int *argc, char **argv)
   simgrid::config::declare_flag<bool>("network/maxmin-selective-update", "Update the constraint set propagating "
                                                                          "recursively to others constraints (off by "
                                                                          "default unless optim is set to lazy)",
-                                      "no");
+                                      false);
 
   simgrid::config::declare_flag<int>("contexts/stack-size", "Stack size of contexts in KiB (not with threads)",
                                      8 * 1024, [](int value) { smx_context_stack_size = value * 1024; });
