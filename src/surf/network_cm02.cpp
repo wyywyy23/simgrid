@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <numeric>
+#include <csignal>
 
 XBT_LOG_EXTERNAL_DEFAULT_CATEGORY(res_network);
 
@@ -142,6 +143,12 @@ void NetworkCm02Model::update_actions_state_full(double /*now*/, double delta)
     auto& action = static_cast<NetworkCm02Action&>(*it);
     ++it; // increment iterator here since the following calls to action.finish() may invalidate it
     XBT_DEBUG("Something happened to action %p", &action);
+
+    // Debug
+//    if (action.get_id() == 1492) {
+//      std::raise(SIGINT);
+//    }
+
     double deltap = delta;
     if (action.latency_ > 0) {
       if (action.latency_ > deltap) {
@@ -179,6 +186,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
   if (rate == -1.0) rate = 300000000000.0 / 8;
+//  if (size ==  0.0) size = 1024.0;
 
   XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
 
@@ -252,10 +260,10 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   action->lat_current_ = action->latency_;
   action->latency_ *= get_latency_factor(size);
   action->set_user_bound(get_bandwidth_constraint(action->get_user_bound(), bandwidth_bound, size));
-  XBT_INFO("Constrained rate: %f", action->get_user_bound());
 
   // DLPS
   // Extra latency posed on the network action; the max of the wake-up latencies of all links.
+  double now = surf_get_clock();
   double extra_latency = 0.0;
 
   std::string dlps_mode = simgrid::config::get_value<std::string>("network/dlps");
@@ -264,29 +272,28 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   for (auto const& link : route) {
 
     // The index of this link in this route
-    link_idx ++;
+    link_idx++;
 
     // Wake-up latency for this link
     double this_latency = 0.0;
 
     // Add to the link's network action list: <action ID, now, the delayed timestamp> when this link starts catering this action.
-    link->get_iface()->add_to_active_action_map(action->id_, action->get_last_update(), action->get_last_update() + (link_idx - 1) * size / bandwidth_bound);
-    // link->get_iface()->set_next_wake(action->get_last_update() + (link_idx - 1) * size / bandwidth_bound);
+    // link->get_iface()->add_to_active_action_map(action->id_, now, now + (link_idx - 1) * size / bandwidth_bound);
+    // link->get_iface()->set_next_wake(now + (link_idx - 1) * size / bandwidth_bound);
 
     // If DLPS not enabled, do nothing
     if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
-      continue;
 
     // If the link has some active actions in progress
-    } else if (link->get_iface()->has_active_actions_before(action->get_last_update())) {
+    } else if (link->get_iface()->has_active_actions_before(now)) {
 
       // The link could be already on, or will be on sooner than expected because some other action has waken it
-      this_latency += std::max(0.0, link->get_iface()->get_next_on() - action->get_last_update());
-      link->get_iface()->set_last_state(link->get_iface()->get_next_on() > action->get_last_update() ?
+      this_latency += std::max(0.0, link->get_iface()->get_next_on() - now);
+      link->get_iface()->set_last_state(link->get_iface()->get_next_on() > now ?
                                         link->get_iface()->get_last_state() : s4u::Link::State::ON);
 
     // If the link has been in a long idle
-    } else if (link->get_iface()->get_last_busy() < 0 || action->get_last_update() - link->get_iface()->get_last_busy() > dlps_idle_threshold_tuning) {
+    } else if (link->get_iface()->get_last_busy() < 0 || now - link->get_iface()->get_last_busy() > dlps_idle_threshold_tuning) {
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -296,10 +303,10 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
       // Record the interval since last transmission
       if (link->get_iface()->get_last_busy() > 0)
-        link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
+        link->get_iface()->interval_recorder.push_back(now - link->get_iface()->get_last_busy());
 
     // If the link has been in a medium idle
-    } else if (action->get_last_update() - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) {
+    } else if (now - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) {
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -307,10 +314,10 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "laser" ? s4u::Link::State::STANDBY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
+      link->get_iface()->interval_recorder.push_back(now - link->get_iface()->get_last_busy());
 
     // If the link has been in a short idle
-    } else if (action->get_last_update() - link->get_iface()->get_last_busy() > 0) { // Short idle
+    } else if (now - link->get_iface()->get_last_busy() > 0) { // Short idle
       this_latency += dlps_mode == "full" ? dlps_delay_laser_waking : (
                       dlps_mode == "laser" ? dlps_delay_laser_waking : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -318,7 +325,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                       dlps_mode == "full" ? s4u::Link::State::READY : (
                       dlps_mode == "laser" ? s4u::Link::State::READY : (
                       dlps_mode == "on-off" ? s4u::Link::State::OFF : s4u::Link::State::ON)));
-      link->get_iface()->interval_recorder.push_back(action->get_last_update() - link->get_iface()->get_last_busy());
+      link->get_iface()->interval_recorder.push_back(now - link->get_iface()->get_last_busy());
 
     // If the interval is zero, treat as no idle
     } else {
@@ -326,16 +333,16 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     }
 
     // update the extra latency for the action
+    xbt_assert(this_latency >= 0);
     extra_latency = std::max(extra_latency, this_latency);
-    // link->get_iface()->add_active_action_at(action->get_last_update());
 
     // Set the time the link is expected to be ON. (FIX ME: if multiple actions at the same time, and the link in this action starts later than in other actions?)
-    link->get_iface()->set_next_on(dlps_mode == "none" ? action->get_last_update() : link->get_iface()->get_next_catering_start() + this_latency);
+    link->get_iface()->set_next_on(dlps_mode == "none" ? now : now + this_latency);
   }
 
   // Add extra latency to the action after all links in the route are looped.
   action->latency_ += extra_latency; // DLPS latency
-  action->set_actual_start_time(action->get_last_update() + extra_latency);
+  action->set_actual_start_time(now + extra_latency);
 
   size_t constraints_per_variable = route.size();
   constraints_per_variable += back_route.size();

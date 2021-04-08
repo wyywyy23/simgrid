@@ -214,10 +214,14 @@ using simgrid::plugin::DLPS;
 static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
 { 
   double now = surf_get_clock();
+  int link_idx = 0;
+
   for (auto* link : action.get_route()) {
+    link_idx++;
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
+        link->get_iface()->add_to_active_action_map(action.get_id(), now, now + (link_idx - 1) * action.get_size() / (link->get_bandwidth() * sg_bandwidth_factor));
         XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
         dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time());
       }
@@ -237,14 +241,17 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
       if (dlps->is_enabled()) {
-        if (action.get_state() == simgrid::kernel::resource::Action::State::FINISHED) {
+        if ((action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
+         || (action.get_state() == simgrid::kernel::resource::Action::State::FAILED)
+         || (action.get_state() == simgrid::kernel::resource::Action::State::IGNORED)) {
 
 	  double actual_transfer_end_time = action.get_actual_start_time() + link_idx * transfer_time_per_link;
           dlps->update_on_comm_end(action.get_id(), actual_transfer_end_time, action.get_size());
           link->get_iface()->remove_from_active_action_map(action.get_id());
-          link->get_iface()->set_last_busy(actual_transfer_end_time);
+          link->get_iface()->set_last_busy(std::max(actual_transfer_end_time, link->get_iface()->get_last_busy()));
 
-          if (link->get_iface()->get_num_active_actions() == 0) {
+
+          /*if (link->get_iface()->get_num_active_actions() == 0) {
             if (dlps->get_dlps_mode() == "full") {
               link->get_iface()->set_next_ready(actual_transfer_end_time);
               link->get_iface()->set_next_standby(actual_transfer_end_time + dlps->get_idle_threshold_laser());
@@ -256,9 +263,9 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
             } else if (dlps->get_dlps_mode() == "on-off") {
               link->get_iface()->set_next_off(actual_transfer_end_time);
             }
-          }
-	  XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
+          }*/
 	}
+        XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
       }
     }
   }

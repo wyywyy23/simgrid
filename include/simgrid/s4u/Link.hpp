@@ -159,13 +159,6 @@ public:
   double get_next_catering_start() const { return next_catering_start_; }
   double get_catering_start_for_action(unsigned long);
 
-  /** Keep track of active actions using this link */
-  std::map<double, unsigned long> active_actions;
-  unsigned long get_num_active_actions_before(double time);
-  unsigned long get_num_active_actions_at(double time);
-  void add_active_action_at(double time);
-  void remove_active_action_at(double time);
-
   bool is_on() const;
 
   void seal();
