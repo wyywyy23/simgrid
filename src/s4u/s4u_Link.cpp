@@ -82,35 +82,35 @@ const char* Link::get_last_state_str() const {
   return to_c_str(last_state_);
 }
 
-/** active actions using this link */
-unsigned long Link::get_num_active_actions_before(double time){
-  unsigned long num = 0;
-  for (auto q = active_actions.begin(); q != active_actions.end() && q->first < time; ++q) {
-    num += q->second;
+// Action list of this link: action_id, link catering time start
+void Link::add_to_active_action_map(unsigned long id, double now, double time) {
+  xbt_assert(active_action_map.find(id) == active_action_map.end(), "Duplicate action ID!");
+
+  if (active_action_map.empty()) {
+    next_catering_start_ = time;
+  } else {
+    next_catering_start_ = std::max(std::min(next_catering_start_, time), now);
   }
-  return num;
+  active_action_map[id] = std::make_pair(now, time);
 }
 
-unsigned long Link::get_num_active_actions_at(double time){
-  unsigned long num = 0;
-  for (auto q = active_actions.begin(); q != active_actions.end() && q->first <= time; ++q) {
-    num += q->second;
+void Link::remove_from_active_action_map(unsigned long id) {
+  xbt_assert(active_action_map.find(id) != active_action_map.end(), "Cannot remove an action that does not exist!");
+  active_action_map.erase(id);
+}
+
+bool Link::has_active_actions_before(double now) {
+  for (auto it = active_action_map.begin(); it != active_action_map.end(); ++it) {
+    if (it->second.first < now) {
+      return true;
+    }
   }
-  return num;
+  return false;
 }
 
-void Link::add_active_action_at(double time){
-  if (active_actions.find(time) == active_actions.end())
-    active_actions[time] = 1;
-  else
-    active_actions[time] += 1;
-}
-
-void Link::remove_active_action_at(double time){
-  xbt_assert(active_actions.find(time) != active_actions.end(), "No active actions to remove at this timestamp.");
-  active_actions[time] -= 1;
-  if (active_actions[time] == 0)
-    active_actions.erase(time);
+double Link::get_catering_start_for_action(unsigned long id) {
+  xbt_assert(active_action_map.find(id) != active_action_map.end(), "Cannot find this action!");
+  return active_action_map[id].second;
 }
 
 Link::SharingPolicy Link::get_sharing_policy() const

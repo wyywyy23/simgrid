@@ -100,6 +100,11 @@ public:
   Link::State last_state_ = Link::State::ON;
 
   /** wyy: timestamps related to the states */
+  double next_wake_ = 0.0;
+  void set_next_wake(double time) { next_wake_ = time; }
+  double get_next_wake() const { return next_wake_; }
+
+  /** wyy: timestamps related to the states */
   double next_on_ = 0.0;
   void set_next_on(double time) { next_on_ = time; }
   double get_next_on() const { return next_on_; }
@@ -122,12 +127,15 @@ public:
 
   boost::circular_buffer<double> interval_recorder;
 
-  /** Keep track of active actions using this link */
-  std::map<double, unsigned long> active_actions;
-  unsigned long get_num_active_actions_before(double time);
-  unsigned long get_num_active_actions_at(double time);
-  void add_active_action_at(double time);
-  void remove_active_action_at(double time);
+  // Action list of this link: action_id, action_start_time, link_catering_time_start
+  std::map<unsigned long, std::pair<double, double>> active_action_map;
+  void add_to_active_action_map(unsigned long, double, double);
+  void remove_from_active_action_map(unsigned long);
+  bool has_active_actions_before(double);
+  unsigned long get_num_active_actions() const { return active_action_map.size(); }
+  double next_catering_start_;
+  double get_next_catering_start() const { return next_catering_start_; }
+  double get_catering_start_for_action(unsigned long);
 
   void seal();
   

@@ -35,6 +35,7 @@ class NetworkModel : public Model {
 public:
   static config::Flag<double> cfg_tcp_gamma;
   static config::Flag<bool> cfg_crosstraffic;
+  unsigned long num_of_actions = 0;
 
   NetworkModel()                    = default;
   NetworkModel(const NetworkModel&) = delete;
@@ -203,6 +204,13 @@ public:
   double latency_         = 0.; // Delay before the action starts
   double lat_current_     = 0.; // Used to compute the communication RTT, and accordingly limit the communication rate
   double sharing_penalty_ = {};
+  double size_ = 0.;
+  double get_size() const { return size_; }
+  unsigned long id_ = 0;
+  unsigned long get_id() const { return id_; }
+
+  std::vector<LinkImpl*> route_;
+  std::vector<LinkImpl*> get_route() const { return route_; }
 
   s4u::Host& get_src() const { return src_; }
   s4u::Host& get_dst() const { return dst_; }
