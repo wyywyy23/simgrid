@@ -110,6 +110,7 @@ XBT_PRIVATE bool smpi_cfg_trace_call_use_absolute_path();
 XBT_PRIVATE std::string smpi_cfg_comp_adjustment_file();
 XBT_PRIVATE std::string smpi_cfg_papi_events_file();
 XBT_PRIVATE double smpi_cfg_auto_shared_malloc_thresh();
+XBT_PRIVATE bool smpi_cfg_display_alloc();
 
 // utilities
 extern XBT_PRIVATE char* smpi_data_exe_start; // start of the data+bss segment of the executable
@@ -529,6 +530,15 @@ XBT_PRIVATE void private_execute_flops(double flops);
     }\
   }
 
+#define CHECK_INIT\
+  {\
+    int init_flag=0;\
+    PMPI_Initialized(&init_flag);\
+    CHECK_ARGS((!init_flag), MPI_ERR_OTHER, "%s: MPI_Init was not called !", __func__)\
+    PMPI_Finalized(&init_flag);\
+    CHECK_ARGS((init_flag), MPI_ERR_OTHER, "%s: MPI_Finalize was already called !", __func__)\
+  }
+
 #define CHECK_MPI_NULL(num, val, err, ptr)\
   CHECK_ARGS((ptr) == (val), (err),\
              "%s: param %d %s cannot be %s", __func__, (num), _XBT_STRINGIFY(ptr), _XBT_STRINGIFY(val))
@@ -558,6 +568,7 @@ XBT_PRIVATE void private_execute_flops(double flops);
 
 #define CHECK_COMM(num)\
   {\
+    CHECK_INIT\
     CHECK_COMM2((num), comm)\
     CHECK_DELETED((num), MPI_ERR_COMM, comm)\
     simgrid::smpi::utils::set_current_handle(comm);\
@@ -575,10 +586,21 @@ XBT_PRIVATE void private_execute_flops(double flops);
       simgrid::smpi::utils::set_current_handle(*request);\
     }\
   }
+#define SET_BUF1(buf)\
+    simgrid::smpi::utils::set_current_buffer(1, _XBT_STRINGIFY(buf), buf);
+#define SET_BUF2(buf)\
+    simgrid::smpi::utils::set_current_buffer(2, _XBT_STRINGIFY(buf), buf);
 
-#define CHECK_BUFFER(num,buf,count)\
-  CHECK_ARGS((buf) == nullptr && (count) > 0, MPI_ERR_BUFFER,\
-             "%s: param %d %s cannot be NULL if %s > 0",__func__, (num), _XBT_STRINGIFY(buf), _XBT_STRINGIFY(count))
+#define CHECK_BUFFER2(num,buf,count)\
+    CHECK_ARGS((buf) == nullptr && (count) > 0, MPI_ERR_BUFFER,\
+             "%s: param %d %s cannot be NULL if %s > 0",__func__, (num), _XBT_STRINGIFY(buf), _XBT_STRINGIFY(count))\
+
+#define CHECK_BUFFER(num,buf,count,datatype)\
+  {\
+    CHECK_BUFFER2(num,buf,count)\
+    CHECK_ARGS( simgrid::smpi::utils::get_buffer_size(buf) < (size_t)(count*datatype->get_extent()), MPI_ERR_BUFFER,\
+             "%s: param %d message size %zd exceeds buffer %s size %zu",__func__, (num), count*datatype->get_extent(), _XBT_STRINGIFY(buf), simgrid::smpi::utils::get_buffer_size(buf))\
+  }
 
 #define CHECK_COUNT(num, count)\
   CHECK_NEGATIVE((num), MPI_ERR_COUNT, (count))
