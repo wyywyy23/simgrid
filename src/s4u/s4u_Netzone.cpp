@@ -42,7 +42,7 @@ void NetZone::set_property(const std::string& key, const std::string& value)
 std::vector<NetZone*> NetZone::get_children() const
 {
   std::vector<NetZone*> res;
-  for (auto child : *(pimpl_->get_children()))
+  for (auto child : pimpl_->get_children())
     res.push_back(child->get_iface());
   return res;
 }
@@ -108,17 +108,11 @@ std::vector<kernel::resource::LinkImpl*> NetZone::get_link_list_impl(const std::
   return links;
 }
 
-void NetZone::add_regular_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
-                                const std::vector<Link*>& link_list, bool symmetrical)
+void NetZone::add_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
+                        kernel::routing::NetPoint* gw_src, kernel::routing::NetPoint* gw_dst,
+                        const std::vector<Link*>& link_list, bool symmetrical)
 {
-  add_route(src, dst, nullptr, nullptr, NetZone::get_link_list_impl(link_list), symmetrical);
-}
-
-void NetZone::add_netzone_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
-                                kernel::routing::NetPoint* gw_src, kernel::routing::NetPoint* gw_dst,
-                                const std::vector<Link*>& link_list, bool symmetrical)
-{
-  add_route(src, dst, gw_src, gw_dst, NetZone::get_link_list_impl(link_list), symmetrical);
+  pimpl_->add_route(src, dst, gw_src, gw_dst, NetZone::get_link_list_impl(link_list), symmetrical);
 }
 
 void NetZone::add_route(kernel::routing::NetPoint* src, kernel::routing::NetPoint* dst,
@@ -149,19 +143,40 @@ NetZone* NetZone::seal()
   return this;
 }
 
+s4u::Host* NetZone::create_host(const std::string& name, double speed)
+{
+  return create_host(name, std::vector<double>{speed});
+}
+
 s4u::Host* NetZone::create_host(const std::string& name, const std::vector<double>& speed_per_pstate)
 {
   return kernel::actor::simcall(
       [this, &name, &speed_per_pstate] { return pimpl_->create_host(name, speed_per_pstate); });
 }
+
+s4u::Host* NetZone::create_host(const std::string& name, const std::string& speed)
+{
+  return create_host(name, std::vector<std::string>{speed});
+}
+
 s4u::Host* NetZone::create_host(const std::string& name, const std::vector<std::string>& speed_per_pstate)
 {
   return create_host(name, Host::convert_pstate_speed_vector(speed_per_pstate));
 }
 
+s4u::Link* NetZone::create_link(const std::string& name, double bandwidth)
+{
+  return create_link(name, std::vector<double>{bandwidth});
+}
+
 s4u::Link* NetZone::create_link(const std::string& name, const std::vector<double>& bandwidths)
 {
   return kernel::actor::simcall([this, &name, &bandwidths] { return pimpl_->create_link(name, bandwidths); });
+}
+
+s4u::Link* NetZone::create_link(const std::string& name, const std::string& bandwidth)
+{
+  return create_link(name, std::vector<std::string>{bandwidth});
 }
 
 s4u::Link* NetZone::create_link(const std::string& name, const std::vector<std::string>& bandwidths)
@@ -178,6 +193,11 @@ s4u::Link* NetZone::create_link(const std::string& name, const std::vector<std::
     }
   }
   return create_link(name, bw);
+}
+
+kernel::routing::NetPoint* NetZone::create_router(const std::string& name)
+{
+  return kernel::actor::simcall([this, &name] { return pimpl_->create_router(name); });
 }
 
 } // namespace s4u

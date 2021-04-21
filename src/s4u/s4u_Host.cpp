@@ -305,6 +305,12 @@ int Host::get_pstate() const
   return this->pimpl_cpu->get_pstate();
 }
 
+Host* Host::set_coordinates(const std::string& coords)
+{
+  if (not coords.empty())
+    kernel::actor::simcall([this, coords] { this->pimpl_netpoint_->set_coordinates(coords); });
+  return this;
+}
 std::vector<Disk*> Host::get_disks() const
 {
   return this->pimpl_->get_disks();
@@ -313,19 +319,22 @@ std::vector<Disk*> Host::get_disks() const
 Disk* Host::create_disk(const std::string& name, double read_bandwidth, double write_bandwidth)
 {
   return kernel::actor::simcall([this, &name, read_bandwidth, write_bandwidth] {
-    return this->pimpl_->create_disk(name, read_bandwidth, write_bandwidth);
+    auto* disk = pimpl_->create_disk(name, read_bandwidth, write_bandwidth);
+    pimpl_->add_disk(disk);
+    return disk;
   });
 }
 
 Disk* Host::create_disk(const std::string& name, const std::string& read_bandwidth, const std::string& write_bandwidth)
 {
-  double d_read, d_write;
+  double d_read;
   try {
     d_read = xbt_parse_get_bandwidth("", 0, read_bandwidth.c_str(), nullptr, "");
   } catch (const simgrid::ParseError&) {
     throw std::invalid_argument(std::string("Impossible to create disk: ") + name +
                                 std::string(". Invalid read bandwidth: ") + read_bandwidth);
   }
+  double d_write;
   try {
     d_write = xbt_parse_get_bandwidth("", 0, write_bandwidth.c_str(), nullptr, "");
   } catch (const simgrid::ParseError&) {

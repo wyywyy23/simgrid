@@ -30,7 +30,7 @@ extern "C" void* _sampi_malloc(size_t size)
 extern "C" void _sampi_free(void* ptr)
 {
   size_t alloc_size = alloc_table.at(ptr);
-  int my_proc_id    = simgrid::s4u::this_actor::get_pid();
+  aid_t my_proc_id  = simgrid::s4u::this_actor::get_pid();
   memory_size[my_proc_id] -= alloc_size;
   xbt_free(ptr);
 }
@@ -47,7 +47,7 @@ extern "C" void* _sampi_calloc(size_t num_elm, size_t elem_size)
 extern "C" void* _sampi_realloc(void* ptr, size_t size)
 {
   void* result = xbt_realloc(ptr, size);
-  int old_size = alloc_table.at(ptr);
+  size_t old_size = alloc_table.at(ptr);
   alloc_table.erase(ptr);
   alloc_table.insert({result, size});
   if (not simgrid::s4u::this_actor::is_maestro()) {
@@ -91,7 +91,7 @@ int APMPI_Iteration_out(MPI_Comm comm)
 void APMPI_Migrate(MPI_Comm comm)
 {
   smpi_bench_end();
-  int my_proc_id = simgrid::s4u::this_actor::get_pid();
+  aid_t my_proc_id = simgrid::s4u::this_actor::get_pid();
   TRACE_migration_call(comm->rank() + 1, new simgrid::instr::AmpiMigrateTIData(memory_size[my_proc_id]));
   smpi_bench_begin();
 }

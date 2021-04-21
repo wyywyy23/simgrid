@@ -140,18 +140,6 @@ int NetZoneImpl::get_host_count() const
   return count;
 }
 
-s4u::Disk* NetZoneImpl::create_disk(const std::string& name, double read_bandwidth, double write_bandwidth)
-{
-  auto* l = disk_model_->create_disk(name, read_bandwidth, write_bandwidth);
-
-  return l->get_iface();
-}
-
-s4u::Link* NetZoneImpl::create_link(const std::string& name, const std::vector<double>& bandwidths)
-{
-  return network_model_->create_link(name, bandwidths)->get_iface();
-}
-
 s4u::Host* NetZoneImpl::create_host(const std::string& name, const std::vector<double>& speed_per_pstate)
 {
   auto* res = (new surf::HostImpl(name))->get_iface();
@@ -162,6 +150,25 @@ s4u::Host* NetZoneImpl::create_host(const std::string& name, const std::vector<d
   return res;
 }
 
+s4u::Link* NetZoneImpl::create_link(const std::string& name, const std::vector<double>& bandwidths)
+{
+  return network_model_->create_link(name, bandwidths)->get_iface();
+}
+
+s4u::Disk* NetZoneImpl::create_disk(const std::string& name, double read_bandwidth, double write_bandwidth)
+{
+  auto* l = disk_model_->create_disk(name, read_bandwidth, write_bandwidth);
+
+  return l->get_iface();
+}
+
+NetPoint* NetZoneImpl::create_router(const std::string& name)
+{
+  xbt_assert(nullptr == s4u::Engine::get_instance()->netpoint_by_name_or_null(name),
+             "Refusing to create a router named '%s': this name already describes a node.", name.c_str());
+
+  return (new NetPoint(name, NetPoint::Type::Router))->set_englobing_zone(this);
+}
 int NetZoneImpl::add_component(NetPoint* elm)
 {
   vertices_.push_back(elm);
@@ -360,39 +367,29 @@ bool NetZoneImpl::get_bypass_route(NetPoint* src, NetPoint* dst,
     path_dst.pop_back();
   }
 
-  int max_index_src = path_src.size() - 1;
-  int max_index_dst = path_dst.size() - 1;
-
-  int max_index = std::max(max_index_src, max_index_dst);
-
   /* (3) Search for a bypass making the path up to the ancestor useless */
   const BypassRoute* bypassedRoute = nullptr;
   std::pair<kernel::routing::NetPoint*, kernel::routing::NetPoint*> key;
-  for (int max = 0; max <= max_index && not bypassedRoute; max++) {
-    for (int i = 0; i < max && not bypassedRoute; i++) {
-      if (i <= max_index_src && max <= max_index_dst) {
-        key      = {path_src.at(i)->netpoint_, path_dst.at(max)->netpoint_};
-        auto bpr = bypass_routes_.find(key);
-        if (bpr != bypass_routes_.end()) {
-          bypassedRoute = bpr->second;
-        }
-      }
-      if (not bypassedRoute && max <= max_index_src && i <= max_index_dst) {
-        key      = {path_src.at(max)->netpoint_, path_dst.at(i)->netpoint_};
-        auto bpr = bypass_routes_.find(key);
-        if (bpr != bypass_routes_.end()) {
-          bypassedRoute = bpr->second;
-        }
-      }
-    }
-
-    if (not bypassedRoute && max <= max_index_src && max <= max_index_dst) {
-      key      = {path_src.at(max)->netpoint_, path_dst.at(max)->netpoint_};
+  // Search for a bypass with the given indices. Returns true if found. Initialize variables `bypassedRoute' and `key'.
+  auto lookup = [&bypassedRoute, &key, &path_src, &path_dst, this](unsigned src_index, unsigned dst_index) {
+    if (src_index < path_src.size() && dst_index < path_dst.size()) {
+      key      = {path_src[src_index]->netpoint_, path_dst[dst_index]->netpoint_};
       auto bpr = bypass_routes_.find(key);
       if (bpr != bypass_routes_.end()) {
         bypassedRoute = bpr->second;
+        return true;
       }
     }
+    return false;
+  };
+
+  for (unsigned max = 0, max_index = std::max(path_src.size(), path_dst.size()); max < max_index; max++) {
+    for (unsigned i = 0; i < max; i++) {
+      if (lookup(i, max) || lookup(max, i))
+        break;
+    }
+    if (bypassedRoute || lookup(max, max))
+      break;
   }
 
   /* (4) If we have the bypass, use it. If not, caller will do the Right Thing. */
@@ -451,8 +448,7 @@ void NetZoneImpl::get_global_route(NetPoint* src, NetPoint* dst,
   /* If source gateway is not our source, we have to recursively find our way up to this point */
   if (src != route.gw_src)
     get_global_route(src, route.gw_src, links, latency);
-  for (auto const& link : route.link_list)
-    links.push_back(link);
+  links.insert(links.end(), begin(route.link_list), end(route.link_list));
 
   /* If dest gateway is not our destination, we have to recursively find our way from this point */
   if (route.gw_dst != dst)
@@ -470,7 +466,7 @@ void NetZoneImpl::seal()
   for (auto* host : get_all_hosts()) {
     host->seal();
   }
-  for (auto* sub_net : *get_children()) {
+  for (auto* sub_net : get_children()) {
     sub_net->seal();
   }
   sealed_ = true;

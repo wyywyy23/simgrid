@@ -116,7 +116,7 @@ public:
   NetZoneImpl* get_parent() const { return parent_; }
   /** @brief Returns the list of direct children (no grand-children). This returns the internal data, no copy.
    * Don't mess with it.*/
-  std::vector<NetZoneImpl*>* get_children() { return &children_; }
+  const std::vector<NetZoneImpl*>& get_children() const { return children_; }
   /** @brief Get current netzone hierarchy */
   RoutingMode get_hierarchy() const { return hierarchy_; }
 
@@ -134,6 +134,8 @@ public:
   s4u::Disk* create_disk(const std::string& name, double read_bandwidth, double write_bandwidth);
   /** @brief Make a link within that NetZone */
   virtual s4u::Link* create_link(const std::string& name, const std::vector<double>& bandwidths);
+  /** @brief Make a router within that NetZone */
+  NetPoint* create_router(const std::string& name);
   /** @brief Creates a new route in this NetZone */
   virtual void add_bypass_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoint* gw_dst,
                                 std::vector<resource::LinkImpl*>& link_list, bool symmetrical);
@@ -174,7 +176,7 @@ private:
   std::shared_ptr<resource::DiskModel> disk_model_;
   std::shared_ptr<simgrid::surf::HostModel> host_model_;
   /** @brief Perform sealing procedure for derived classes, if necessary */
-  virtual void do_seal(){};
+  virtual void do_seal() { /* obviously nothing to do by default */ }
   void add_child(NetZoneImpl* new_zone);
 };
 } // namespace routing

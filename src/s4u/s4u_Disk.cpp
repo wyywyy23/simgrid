@@ -75,6 +75,12 @@ Disk* Disk::set_property(const std::string& key, const std::string& value)
   return this;
 }
 
+Disk* Disk::set_properties(const std::unordered_map<std::string, std::string>& properties)
+{
+  kernel::actor::simcall([this, properties] { this->pimpl_->set_properties(properties); });
+  return this;
+}
+
 IoPtr Disk::io_init(sg_size_t size, Io::OpType type) const
 {
   return Io::init()->set_disk(this)->set_size(size)->set_op_type(type);
@@ -103,7 +109,6 @@ sg_size_t Disk::write(sg_size_t size) const
 Disk* Disk::seal()
 {
   kernel::actor::simcall([this]{ pimpl_->seal(); });
-  get_host()->add_disk(this);
   Disk::on_creation(*this);
   return this;
 }

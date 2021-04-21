@@ -346,7 +346,8 @@ int Win::accumulate(const void *origin_addr, int origin_count, MPI_Datatype orig
 
   // prepare receiver request
   MPI_Request rreq = Request::rma_recv_init(recv_addr, target_count, target_datatype, recv_win->comm_->rank(),
-                                            recv_win->comm_->group()->rank(comm_->group()->actor(target_rank)), SMPI_RMA_TAG - 3 - count_, recv_win->comm_, op);
+                                            recv_win->comm_->group()->rank(comm_->group()->actor(target_rank)),
+                                            SMPI_RMA_TAG - 3 - count_, recv_win->comm_, op);
 
   count_++;
 
@@ -554,7 +555,7 @@ int Win::wait(){
   XBT_DEBUG("Win_wait - Finished %d RMA calls", finished);
 
   Group::unref(group_);
-  opened_--; //we're opened for business !
+  opened_--; //we're closed for business !
   return MPI_SUCCESS;
 }
 
@@ -671,7 +672,7 @@ int Win::finish_comms(int rank){
   // because we only wait for requests that we are responsible for.
   // Also use the process id here since the request itself returns from src()
   // and dst() the process id, NOT the rank (which only exists in the context of a communicator).
-  int proc_id = comm_->group()->actor(rank)->get_pid();
+  aid_t proc_id = comm_->group()->actor(rank);
   auto it     = std::stable_partition(begin(requests_), end(requests_), [proc_id](const MPI_Request& req) {
     return (req == MPI_REQUEST_NULL || (req->src() != proc_id && req->dst() != proc_id));
   });

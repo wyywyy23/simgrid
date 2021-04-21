@@ -28,9 +28,8 @@
 
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(smpi_memory, smpi, "Memory layout support for SMPI");
 
-int smpi_loaded_page      = -1;
 char* smpi_data_exe_start = nullptr;
-int smpi_data_exe_size    = 0;
+size_t smpi_data_exe_size = 0;
 SmpiPrivStrategies smpi_privatize_global_variables;
 static void* smpi_data_exe_copy;
 
@@ -116,19 +115,18 @@ static void* asan_safe_memcpy(void* dest, void* src, size_t n)
  */
 int smpi_temp_shm_get()
 {
-  constexpr unsigned VAL_MASK = 0xffffffffUL;
-  static unsigned prev_val    = VAL_MASK;
+  constexpr unsigned INDEX_MASK = 0xffffffffUL;
+  static unsigned index         = INDEX_MASK;
   char shmname[32]; // cannot be longer than PSHMNAMLEN = 31 on macOS (shm_open raises ENAMETOOLONG otherwise)
   int fd;
 
-  for (unsigned i = (prev_val + 1) & VAL_MASK; i != prev_val; i = (i + 1) & VAL_MASK) {
-    snprintf(shmname, sizeof(shmname), "/smpi-buffer-%016x", i);
+  unsigned limit = index;
+  do {
+    index = (index + 1) & INDEX_MASK;
+    snprintf(shmname, sizeof(shmname), "/smpi-buffer-%016x", index);
     fd = shm_open(shmname, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-    if (fd != -1 || errno != EEXIST) {
-      prev_val = i;
-      break;
-    }
-  }
+  } while (fd == -1 && errno == EEXIST && index != limit);
+
   if (fd < 0) {
     if (errno == EMFILE) {
       xbt_die("Impossible to create temporary file for memory mapping: %s\n\
@@ -181,6 +179,7 @@ void* smpi_temp_shm_mmap(int fd, size_t size)
  */
 void smpi_switch_data_segment(simgrid::s4u::ActorPtr actor)
 {
+  static aid_t smpi_loaded_page = -1;
   if (smpi_loaded_page == actor->get_pid()) // no need to switch, we've already loaded the one we want
     return;
 
@@ -211,7 +210,7 @@ void smpi_backup_global_memory_segment()
   initial_vm_map.clear();
   initial_vm_map.shrink_to_fit();
 
-  XBT_DEBUG("bss+data segment found : size %d starting at %p", smpi_data_exe_size, smpi_data_exe_start);
+  XBT_DEBUG("bss+data segment found : size %zu starting at %p", smpi_data_exe_size, smpi_data_exe_start);
 
   if (smpi_data_exe_size == 0) { // no need to do anything as global variables don't exist
     smpi_privatize_global_variables = SmpiPrivStrategies::NONE;

@@ -77,7 +77,8 @@ XBT_PRIVATE simgrid::smpi::ActorExt* smpi_process();
 XBT_PRIVATE simgrid::smpi::ActorExt* smpi_process_remote(simgrid::s4u::ActorPtr actor);
 XBT_PRIVATE int smpi_get_universe_size();
 
-XBT_PRIVATE void smpi_deployment_register_process(const std::string& instance_id, int rank, simgrid::s4u::Actor* actor);
+XBT_PRIVATE void smpi_deployment_register_process(const std::string& instance_id, int rank,
+                                                  const simgrid::s4u::Actor* actor);
 XBT_PRIVATE void smpi_deployment_unregister_process(const std::string& instance_id);
 
 XBT_PRIVATE MPI_Comm* smpi_deployment_comm_world(const std::string& instance_id);
@@ -114,7 +115,7 @@ XBT_PRIVATE bool smpi_cfg_display_alloc();
 
 // utilities
 extern XBT_PRIVATE char* smpi_data_exe_start; // start of the data+bss segment of the executable
-extern XBT_PRIVATE int smpi_data_exe_size;    // size of the data+bss segment of the executable
+extern XBT_PRIVATE size_t smpi_data_exe_size; // size of the data+bss segment of the executable
 
 XBT_PRIVATE void smpi_switch_data_segment(simgrid::s4u::ActorPtr actor);
 
@@ -493,7 +494,6 @@ struct s_smpi_privatization_region_t {
 };
 using smpi_privatization_region_t = s_smpi_privatization_region_t*;
 
-extern XBT_PRIVATE int smpi_loaded_page;
 XBT_PRIVATE smpi_privatization_region_t smpi_init_global_memory_segment_process();
 
 /**

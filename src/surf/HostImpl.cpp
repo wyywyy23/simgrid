@@ -76,8 +76,9 @@ void HostImpl::turn_on() const
 {
   for (auto const& arg : actors_at_boot_) {
     XBT_DEBUG("Booting Actor %s(%s) right now", arg->name.c_str(), arg->host->get_cname());
-    simgrid::kernel::actor::ActorImplPtr actor = simgrid::kernel::actor::ActorImpl::create(
-        arg->name, arg->code, nullptr, arg->host, arg->properties.get(), nullptr);
+    simgrid::kernel::actor::ActorImplPtr actor =
+        simgrid::kernel::actor::ActorImpl::create(arg->name, arg->code, nullptr, arg->host, nullptr);
+    actor->set_properties(arg->properties);
     if (arg->on_exit)
       *actor->on_exit = *arg->on_exit;
     if (arg->kill_time >= 0)
@@ -126,14 +127,6 @@ std::vector<s4u::Disk*> HostImpl::get_disks() const
   for (auto const& d : disks_)
     disks.push_back(d->get_iface());
   return disks;
-}
-
-HostImpl* HostImpl::set_disks(const std::vector<kernel::resource::DiskImpl*>& disks)
-{
-  disks_ = disks;
-  for (auto d : disks_)
-    d->set_host(&piface_);
-  return this;
 }
 
 s4u::Disk* HostImpl::create_disk(const std::string& name, double read_bandwidth, double write_bandwidth)
