@@ -378,7 +378,7 @@ void ETag_surfxml_cluster(){
     surf_parse_error(std::string("Invalid bb sharing policy in cluster ") + cluster.id);
   }
 
-  sg_platf_new_cluster(&cluster);
+  sg_platf_new_tag_cluster(&cluster);
 }
 
 void STag_surfxml_cluster(){
@@ -512,18 +512,19 @@ void STag_surfxml_link___ctn()
   parsed_link_list.push_back(link);
 }
 
-void ETag_surfxml_backbone(){
-  simgrid::kernel::routing::LinkCreationArgs link;
+void ETag_surfxml_backbone()
+{
+  auto link = std::make_unique<simgrid::kernel::routing::LinkCreationArgs>();
 
-  link.id = std::string(A_surfxml_backbone_id);
-  link.bandwidths.push_back(xbt_parse_get_bandwidth(
-      surf_parsed_filename, surf_parse_lineno, A_surfxml_backbone_bandwidth, "bandwidth of backbone", link.id.c_str()));
-  link.latency    = xbt_parse_get_time(surf_parsed_filename, surf_parse_lineno, A_surfxml_backbone_latency,
-                                    "latency of backbone", link.id.c_str());
-  link.policy     = simgrid::s4u::Link::SharingPolicy::SHARED;
+  link->id = std::string(A_surfxml_backbone_id);
+  link->bandwidths.push_back(xbt_parse_get_bandwidth(surf_parsed_filename, surf_parse_lineno,
+                                                     A_surfxml_backbone_bandwidth, "bandwidth of backbone",
+                                                     link->id.c_str()));
+  link->latency = xbt_parse_get_time(surf_parsed_filename, surf_parse_lineno, A_surfxml_backbone_latency,
+                                     "latency of backbone", link->id.c_str());
+  link->policy  = simgrid::s4u::Link::SharingPolicy::SHARED;
 
-  sg_platf_new_link(&link);
-  routing_cluster_add_backbone(simgrid::s4u::Link::by_name(std::string(A_surfxml_backbone_id))->get_impl());
+  routing_cluster_add_backbone(std::move(link));
 }
 
 void STag_surfxml_route(){
@@ -707,7 +708,6 @@ void ETag_surfxml_zone()
 {
   sg_platf_new_Zone_set_properties(property_sets.back());
   property_sets.pop_back();
-
   sg_platf_new_Zone_seal();
 }
 

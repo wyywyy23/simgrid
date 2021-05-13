@@ -24,6 +24,12 @@ Exec::Exec(kernel::activity::ExecImplPtr pimpl)
   pimpl_ = pimpl;
 }
 
+void Exec::complete(Activity::State state)
+{
+  Activity::complete(state);
+  on_completion(*this);
+}
+
 ExecPtr Exec::init()
 {
   auto pimpl = kernel::activity::ExecImplPtr(new kernel::activity::ExecImpl());
@@ -43,26 +49,7 @@ Exec* Exec::start()
     pimpl_->suspend();
 
   state_      = State::STARTED;
-  start_time_ = pimpl_->surf_action_->get_start_time();
   on_start(*this);
-  return this;
-}
-
-Exec* Exec::wait()
-{
-  return this->wait_for(-1);
-}
-
-Exec* Exec::wait_for(double timeout)
-{
-  if (state_ == State::INITED)
-    vetoable_start();
-
-  kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-  kernel::actor::simcall_blocking([this, issuer, timeout] { this->get_impl()->wait_for(issuer, timeout); });
-  state_ = State::FINISHED;
-  on_completion(*this);
-  this->release_dependencies();
   return this;
 }
 
@@ -79,19 +66,9 @@ int Exec::wait_any_for(std::vector<ExecPtr>* execs, double timeout)
         kernel::activity::ExecImpl::wait_any_for(observer.get_issuer(), observer.get_execs(), observer.get_timeout());
       },
       &observer);
-  if (changed_pos != -1) {
-    on_completion(*(execs->at(changed_pos)));
-    execs->at(changed_pos)->release_dependencies();
-  }
+  if (changed_pos != -1)
+    execs->at(changed_pos)->complete(State::FINISHED);
   return changed_pos;
-}
-
-Exec* Exec::cancel()
-{
-  kernel::actor::simcall([this] { boost::static_pointer_cast<kernel::activity::ExecImpl>(pimpl_)->cancel(); });
-  state_ = State::CANCELED;
-  on_completion(*this);
-  return this;
 }
 
 /** @brief change the execution bound
@@ -175,6 +152,16 @@ Host* Exec::get_host() const
 unsigned int Exec::get_host_number() const
 {
   return static_cast<kernel::activity::ExecImpl*>(pimpl_.get())->get_host_number();
+}
+
+double Exec::get_start_time() const
+{
+  return static_cast<kernel::activity::ExecImpl*>(pimpl_.get())->get_start_time();
+}
+
+double Exec::get_finish_time() const
+{
+  return static_cast<kernel::activity::ExecImpl*>(pimpl_.get())->get_finish_time();
 }
 
 /** @brief Change the host on which this activity takes place.
@@ -302,19 +289,7 @@ int sg_exec_test(sg_exec_t exec)
 
 sg_error_t sg_exec_wait(sg_exec_t exec)
 {
-  sg_error_t status = SG_OK;
-
-  simgrid::s4u::ExecPtr s4u_exec(exec, false);
-  try {
-    s4u_exec->wait_for(-1);
-  } catch (const simgrid::TimeoutException&) {
-    status = SG_ERROR_TIMEOUT;
-  } catch (const simgrid::CancelException&) {
-    status = SG_ERROR_CANCELED;
-  } catch (const simgrid::HostFailureException&) {
-    status = SG_ERROR_HOST;
-  }
-  return status;
+  return sg_exec_wait_for(exec, -1.0);
 }
 
 sg_error_t sg_exec_wait_for(sg_exec_t exec, double timeout)
@@ -325,6 +300,7 @@ sg_error_t sg_exec_wait_for(sg_exec_t exec, double timeout)
   try {
     s4u_exec->wait_for(timeout);
   } catch (const simgrid::TimeoutException&) {
+    s4u_exec->add_ref(); // the wait_for timeouted, keep the exec alive
     status = SG_ERROR_TIMEOUT;
   } catch (const simgrid::CancelException&) {
     status = SG_ERROR_CANCELED;
@@ -336,7 +312,7 @@ sg_error_t sg_exec_wait_for(sg_exec_t exec, double timeout)
 
 int sg_exec_wait_any(sg_exec_t* execs, size_t count)
 {
-  return sg_exec_wait_any_for(execs, count, -1);
+  return sg_exec_wait_any_for(execs, count, -1.0);
 }
 
 int sg_exec_wait_any_for(sg_exec_t* execs, size_t count, double timeout)

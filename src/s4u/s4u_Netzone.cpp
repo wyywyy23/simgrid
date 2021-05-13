@@ -99,7 +99,7 @@ int NetZone::add_component(kernel::routing::NetPoint* elm)
   return pimpl_->add_component(elm);
 }
 
-std::vector<kernel::resource::LinkImpl*> NetZone::get_link_list_impl(const std::vector<Link*> link_list)
+std::vector<kernel::resource::LinkImpl*> NetZone::get_link_list_impl(const std::vector<Link*>& link_list)
 {
   std::vector<kernel::resource::LinkImpl*> links;
   for (const auto& link : link_list) {
@@ -200,6 +200,10 @@ kernel::routing::NetPoint* NetZone::create_router(const std::string& name)
   return kernel::actor::simcall([this, &name] { return pimpl_->create_router(name); });
 }
 
+kernel::routing::NetPoint* NetZone::get_netpoint()
+{
+  return pimpl_->get_netpoint();
+}
 } // namespace s4u
 } // namespace simgrid
 

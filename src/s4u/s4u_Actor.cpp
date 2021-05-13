@@ -157,13 +157,10 @@ void Actor::set_host(Host* new_host)
   const s4u::Host* previous_location = get_host();
 
   kernel::actor::simcall([this, new_host]() {
-    if (pimpl_->waiting_synchro_ != nullptr) {
-      // The actor is blocked on an activity. If it's an exec, migrate it too.
+    for (auto const& activity : pimpl_->activities_) {
       // FIXME: implement the migration of other kinds of activities
-      kernel::activity::ExecImplPtr exec =
-          boost::dynamic_pointer_cast<kernel::activity::ExecImpl>(pimpl_->waiting_synchro_);
-      xbt_assert(exec.get() != nullptr, "We can only migrate blocked actors when they are blocked on executions.");
-      exec->migrate(new_host);
+      if (auto exec = boost::dynamic_pointer_cast<kernel::activity::ExecImpl>(activity))
+        exec->migrate(new_host);
     }
     this->pimpl_->set_host(new_host);
   });
@@ -318,22 +315,34 @@ void sleep_for(double duration)
 {
   xbt_assert(std::isfinite(duration), "duration is not finite!");
 
-  if (duration > 0) {
-    kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
-    Actor::on_sleep(*issuer->get_ciface());
+  if (duration <= 0) /* that's a no-op */
+    return;
 
-    kernel::actor::simcall_blocking([issuer, duration]() {
-      if (MC_is_active() || MC_record_replay_is_active()) {
-        MC_process_clock_add(issuer, duration);
-        issuer->simcall_answer();
-        return;
-      }
-      kernel::activity::ActivityImplPtr sync = issuer->sleep(duration);
-      sync->register_simcall(&issuer->simcall_);
-    });
-
-    Actor::on_wake_up(*issuer->get_ciface());
+  if (duration < sg_surf_precision) {
+    static unsigned int warned = 0; // At most 20 such warnings
+    warned++;
+    if (warned <= 20)
+      XBT_INFO("The parameter to sleep_for() is smaller than the SimGrid numerical accuracy (%g < %g). "
+               "Please refer to https://simgrid.org/doc/latest/Configuring_SimGrid.html#numerical-precision",
+               duration, sg_surf_precision);
+    if (warned == 20)
+      XBT_VERB("(further warnings about the numerical accuracy of sleep_for() will be omitted).");
   }
+
+  kernel::actor::ActorImpl* issuer = kernel::actor::ActorImpl::self();
+  Actor::on_sleep(*issuer->get_ciface());
+
+  kernel::actor::simcall_blocking([issuer, duration]() {
+    if (MC_is_active() || MC_record_replay_is_active()) {
+      MC_process_clock_add(issuer, duration);
+      issuer->simcall_answer();
+      return;
+    }
+    kernel::activity::ActivityImplPtr sync = issuer->sleep(duration);
+    sync->register_simcall(&issuer->simcall_);
+  });
+
+  Actor::on_wake_up(*issuer->get_ciface());
 }
 
 void yield()

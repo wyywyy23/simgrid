@@ -7,29 +7,29 @@
 #include "simgrid/kernel/routing/NetPoint.hpp"
 #include "simgrid/kernel/routing/RoutedZone.hpp"
 #include "src/surf/network_interface.hpp"
-#include "src/surf/xml/platf_private.hpp" // RouteCreationArgs and friends
+#include "xbt/string.hpp"
 
 XBT_LOG_NEW_DEFAULT_SUBCATEGORY(surf_route_star, surf, "Routing part of surf");
 
 namespace simgrid {
 namespace kernel {
 namespace routing {
-StarZone::StarZone(const std::string& name) : NetZoneImpl(name) {}
+StarZone::StarZone(const std::string& name) : ClusterZone(name) {}
 
-void StarZone::add_links_to_route(const std::vector<resource::LinkImpl*>& links, RouteCreationArgs* route,
-                                  double* latency, std::unordered_set<resource::LinkImpl*>& added_links) const
+void StarZone::add_links_to_route(const std::vector<resource::LinkImpl*>& links, Route* route, double* latency,
+                                  std::unordered_set<resource::LinkImpl*>& added_links) const
 {
   for (auto* link : links) {
-    /* do not add duplicated links in route->link_list */
+    /* do not add duplicated links in route->link_list_ */
     if (not added_links.insert(link).second)
       continue;
     if (latency)
       *latency += link->get_latency();
-    route->link_list.push_back(link);
+    route->link_list_.push_back(link);
   }
 }
 
-void StarZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs* route, double* latency)
+void StarZone::get_local_route(NetPoint* src, NetPoint* dst, Route* route, double* latency)
 {
   XBT_VERB("StarZone getLocalRoute from '%s'[%u] to '%s'[%u]", src->get_cname(), src->id(), dst->get_cname(),
            dst->id());
@@ -56,8 +56,8 @@ void StarZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs* 
   /* going DOWN */
   add_links_to_route(dst_route.links_down, route, latency, added_links);
   /* gateways */
-  route->gw_src = src_route.gateway;
-  route->gw_dst = dst_route.gateway;
+  route->gw_src_ = src_route.gateway;
+  route->gw_dst_ = dst_route.gateway;
 }
 
 void StarZone::get_graph(const s_xbt_graph_t* graph, std::map<std::string, xbt_node_t, std::less<>>* nodes,
@@ -79,10 +79,10 @@ void StarZone::get_graph(const s_xbt_graph_t* graph, std::map<std::string, xbt_n
     previous = star_node;
     for (auto const* link : routes_[src->id()].links_down) {
       xbt_node_t current = new_xbt_graph_node(graph, link->get_cname(), nodes);
-      new_xbt_graph_edge(graph, previous, current, edges);
+      new_xbt_graph_edge(graph, current, previous, edges);
       previous = current;
     }
-    new_xbt_graph_edge(graph, previous, src_node, edges);
+    new_xbt_graph_edge(graph, src_node, previous, edges);
   }
 }
 
@@ -92,55 +92,65 @@ void StarZone::check_add_route_param(const NetPoint* src, const NetPoint* dst, c
   const char* src_name = src ? src->get_cname() : "nullptr";
   const char* dst_name = dst ? dst->get_cname() : "nullptr";
 
-  xbt_assert((src || dst) && (not dst || not src || src == dst),
-             "Cannot add route from %s to %s. In a StarZone, route must be:  i) from source host to everyone, ii) from "
-             "everyone to a single host or iii) loopback, same source and destination",
-             src_name, dst_name);
-  xbt_assert(not symmetrical || src,
-             "Cannot add route from %s to %s. In a StarZone, symmetrical routes must be set from source to everyone "
-             "(not the contrary).",
-             src_name, dst_name);
+  if ((not src && not dst) || (dst && src && src != dst))
+    throw std::invalid_argument(xbt::string_printf(
+        "Cannot add route from %s to %s. In a StarZone, route must be:  i) from source netpoint to everyone, ii) from "
+        "everyone to a single netpoint or iii) loopback, same source and destination",
+        src_name, dst_name));
+
+  if (symmetrical && not src)
+    throw std::invalid_argument(xbt::string_printf("Cannot add route from %s to %s. In a StarZone, symmetrical routes "
+                                                   "must be set from source to everyone (not the contrary)",
+                                                   src_name, dst_name));
 
   if (src && src->is_netzone()) {
-    xbt_assert(gw_src, "add_route(): source %s is a netzone but gw_src isn't configured", src->get_cname());
-    xbt_assert(not gw_src->is_netzone(), "add_route(): src(%s) is a netzone, gw_src(%s) cannot be a netzone",
-               src->get_cname(), gw_src->get_cname());
+    if (not gw_src)
+      throw std::invalid_argument(xbt::string_printf(
+          "StarZone::add_route(): source %s is a netzone but gw_src isn't configured", src->get_cname()));
+    if (gw_src->is_netzone())
+      throw std::invalid_argument(
+          xbt::string_printf("StarZone::add_route(): src(%s) is a netzone, gw_src(%s) cannot be a netzone",
+                             src->get_cname(), gw_src->get_cname()));
   }
 
   if (dst && dst->is_netzone()) {
-    xbt_assert(gw_dst, "add_route(): destination %s is a netzone but gw_dst isn't configured", dst->get_cname());
-    xbt_assert(not gw_dst->is_netzone(), "add_route(): dst(%s) is a netzone, gw_dst(%s) cannot be a netzone",
-               dst->get_cname(), gw_dst->get_cname());
+    if (not gw_dst)
+      throw std::invalid_argument(xbt::string_printf(
+          "StarZone::add_route(): destination %s is a netzone but gw_dst isn't configured", dst->get_cname()));
+    if (gw_dst->is_netzone())
+      throw std::invalid_argument(
+          xbt::string_printf("StarZone::add_route(): dst(%s) is a netzone, gw_dst(%s) cannot be a netzone",
+                             dst->get_cname(), gw_dst->get_cname()));
   }
 }
 
 void StarZone::add_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoint* gw_dst,
-                         const std::vector<kernel::resource::LinkImpl*>& link_list, bool symmetrical)
+                         const std::vector<kernel::resource::LinkImpl*>& link_list_, bool symmetrical)
 {
   check_add_route_param(src, dst, gw_src, gw_dst, symmetrical);
 
-  s4u::NetZone::on_route_creation(symmetrical, gw_src, gw_dst, gw_src, gw_dst, link_list);
+  s4u::NetZone::on_route_creation(symmetrical, src, dst, gw_src, gw_dst, link_list_);
 
   /* loopback */
   if (src == dst) {
-    routes_[src->id()].loopback = link_list;
+    routes_[src->id()].loopback = link_list_;
   } else {
     /* src to everyone */
     if (src) {
       auto& route        = routes_[src->id()];
-      route.links_up     = link_list;
+      route.links_up     = link_list_;
       route.gateway      = gw_src;
       route.links_up_set = true;
       if (symmetrical) {
         /* reverse it for down/symmetrical links */
-        route.links_down.assign(link_list.rbegin(), link_list.rend());
+        route.links_down.assign(link_list_.rbegin(), link_list_.rend());
         route.links_down_set = true;
       }
     }
     /* dst to everyone */
     if (dst) {
       auto& route          = routes_[dst->id()];
-      route.links_down     = link_list;
+      route.links_down     = link_list_;
       route.gateway        = gw_dst;
       route.links_down_set = true;
     }

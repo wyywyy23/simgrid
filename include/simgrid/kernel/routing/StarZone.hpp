@@ -6,7 +6,7 @@
 #ifndef SIMGRID_KERNEL_ROUTING_STARZONE_HPP_
 #define SIMGRID_KERNEL_ROUTING_STARZONE_HPP_
 
-#include <simgrid/kernel/routing/NetZoneImpl.hpp>
+#include <simgrid/kernel/routing/ClusterZone.hpp>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -60,12 +60,11 @@ namespace routing {
  *  In this case, a communication from A to B goes through the links: <tt> l0, backbone, l1. </tt>
  *  Note that the backbone only appears once in the link list.
  */
-
-class StarZone : public NetZoneImpl {
+class StarZone : public ClusterZone { // implements the old ClusterZone
 public:
   explicit StarZone(const std::string& name);
 
-  void get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs* route, double* latency) override;
+  void get_local_route(NetPoint* src, NetPoint* dst, Route* route, double* latency) override;
   void get_graph(const s_xbt_graph_t* graph, std::map<std::string, xbt_node_t, std::less<>>* nodes,
                  std::map<std::string, xbt_edge_t, std::less<>>* edges) override;
 
@@ -87,7 +86,7 @@ private:
     bool has_links_down() const { return links_down_set; }
   };
   /** @brief Auxiliary method to add links to a route */
-  void add_links_to_route(const std::vector<resource::LinkImpl*>& links, RouteCreationArgs* route, double* latency,
+  void add_links_to_route(const std::vector<resource::LinkImpl*>& links, Route* route, double* latency,
                           std::unordered_set<resource::LinkImpl*>& added_links) const;
   /** @brief Auxiliary methods to check params received in add_route method */
   void check_add_route_param(const NetPoint* src, const NetPoint* dst, const NetPoint* gw_src, const NetPoint* gw_dst,

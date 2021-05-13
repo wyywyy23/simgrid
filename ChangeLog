@@ -2,11 +2,30 @@
 
 SimGrid (3.27.1) NOT RELEASED YET (v3.28 expected June 21. 2021, 03:32 UTC)
 
+S4U:
+ - Fixed a bug where Activity::wait_for() killed the activity on timeout.
+   Explicitly cancel the activity to get back to previous behavior.
+
+SMPI:
+ - The default SMPI compiler flags are no more taken from the environment.
+   They can be explicitly set through cmake parameters SMPI_C_FLAGS,
+   SMPI_CXX_FLAGS, or SMPI_Fortran_FLAGS.
+
 LUA:
  - Lua platform files are deprecated. Their support will be dropped after v3.31.
 
 XBT:
  - xbt_assert is not disabled anymore, even when built with enable_debug=off.
+
+Documentation:
+ - New tutorial: Model-checking and formal assessment
+
+Fixed bugs (FG#.. -> FramaGit bugs; FG!.. -> FG merge requests)
+ (FG: issues on Framagit; GF: issues on GForge; GH: issues on GitHub)
+ - FG#47: Complete and fix tests from teshuite/s4u/activity-lifecycle
+ - FG#64: Configuring smpi/IB-penalty-factors
+ - FG#67: Running computation concurrently with MPI_Iallreduce
+ - GH#322: Issue when an actor kills his host vm
 
 ----------------------------------------------------------------------------
 

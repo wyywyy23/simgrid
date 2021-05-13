@@ -185,6 +185,9 @@ static void clusterCreation_cb(simgrid::kernel::routing::ClusterCreationArgs con
 {
   ns3::NodeContainer Nodes;
 
+  xbt_assert(cluster.topology == simgrid::kernel::routing::ClusterTopology::FLAT,
+             "NS-3 is supported only by flat clusters. Do not use with other topologies");
+
   for (int const& i : cluster.radicals) {
     // Create private link
     std::string host_id = cluster.prefix + std::to_string(i) + cluster.suffix;
@@ -229,6 +232,10 @@ static void routeCreation_cb(bool symmetrical, simgrid::kernel::routing::NetPoin
                              simgrid::kernel::routing::NetPoint* /*gw_dst*/,
                              std::vector<simgrid::kernel::resource::LinkImpl*> const& link_list)
 {
+  /* ignoring routes from StarZone, not supported */
+  if (not src || not dst)
+    return;
+
   if (link_list.size() == 1) {
     auto const* link = static_cast<simgrid::kernel::resource::LinkNS3*>(link_list[0]);
 

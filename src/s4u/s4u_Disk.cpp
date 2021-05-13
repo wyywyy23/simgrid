@@ -20,10 +20,14 @@ xbt::signal<void(Disk&)> Disk::on_creation;
 xbt::signal<void(Disk const&)> Disk::on_destruction;
 xbt::signal<void(Disk const&)> Disk::on_state_change;
 
-Disk* Disk::set_name(const std::string& name)
+const std::string& Disk::get_name() const
 {
-  name_ = name;
-  return this;
+  return pimpl_->get_name();
+}
+
+const char* Disk::get_cname() const
+{
+  return pimpl_->get_cname();
 }
 
 Disk* Disk::set_read_bandwidth(double read_bw)
@@ -78,6 +82,27 @@ Disk* Disk::set_property(const std::string& key, const std::string& value)
 Disk* Disk::set_properties(const std::unordered_map<std::string, std::string>& properties)
 {
   kernel::actor::simcall([this, properties] { this->pimpl_->set_properties(properties); });
+  return this;
+}
+
+Disk* Disk::set_state_profile(kernel::profile::Profile* profile)
+{
+  xbt_assert(not pimpl_->is_sealed(), "Cannot set a state profile once the Disk is sealed");
+  kernel::actor::simcall([this, profile]() { this->pimpl_->set_state_profile(profile); });
+  return this;
+}
+
+Disk* Disk::set_read_bandwidth_profile(kernel::profile::Profile* profile)
+{
+  xbt_assert(not pimpl_->is_sealed(), "Cannot set a bandwidth profile once the Disk is sealed");
+  kernel::actor::simcall([this, profile]() { this->pimpl_->set_read_bandwidth_profile(profile); });
+  return this;
+}
+
+Disk* Disk::set_write_bandwidth_profile(kernel::profile::Profile* profile)
+{
+  xbt_assert(not pimpl_->is_sealed(), "Cannot set a bandwidth profile once the Disk is sealed");
+  kernel::actor::simcall([this, profile]() { this->pimpl_->set_write_bandwidth_profile(profile); });
   return this;
 }
 

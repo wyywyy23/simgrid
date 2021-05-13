@@ -156,7 +156,7 @@ class System;
 }
 namespace resource {
 class Action;
-class Cpu;
+class CpuImpl;
 class Model;
 class Resource;
 class CpuModel;
@@ -167,10 +167,8 @@ class DiskImpl;
 class DiskModel;
 }
 namespace routing {
-class ClusterCreationArgs;
 class NetPoint;
 class NetZoneImpl;
-class RouteCreationArgs;
 }
 namespace profile {
 class Event;

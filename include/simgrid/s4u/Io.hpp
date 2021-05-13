@@ -25,6 +25,8 @@ class XBT_PUBLIC Io : public Activity_T<Io> {
 protected:
   explicit Io(kernel::activity::IoImplPtr pimpl);
 
+  void complete(Activity::State state) override;
+
 public:
   enum class OpType { READ, WRITE };
 
@@ -33,9 +35,11 @@ public:
 
   static IoPtr init();
   Io* start() override;
-  Io* wait() override;
-  Io* wait_for(double timeout) override;
-  Io* cancel() override;
+  /*! take a vector of s4u::IoPtr and return when one of them is finished.
+   * The return value is the rank of the first finished IoPtr. */
+  static int wait_any(std::vector<IoPtr>* ios) { return wait_any_for(ios, -1); }
+  /*! Same as wait_any, but with a timeout. If the timeout occurs, parameter last is returned.*/
+  static int wait_any_for(std::vector<IoPtr>* ios, double timeout);
 
   double get_remaining() const override;
   sg_size_t get_performed_ioops() const;

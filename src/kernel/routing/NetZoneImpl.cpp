@@ -13,7 +13,6 @@
 #include "src/surf/HostImpl.hpp"
 #include "src/surf/cpu_interface.hpp"
 #include "src/surf/network_interface.hpp"
-#include "src/surf/xml/platf_private.hpp"
 #include "surf/surf.hpp"
 
 XBT_LOG_EXTERNAL_DEFAULT_CATEGORY(surf_route);
@@ -42,16 +41,16 @@ static void surf_config_models_setup()
     xbt_assert(not cpu_model_name.empty(), "Set a cpu model to use with the 'compound' host model");
     xbt_assert(not network_model_name.empty(), "Set a network model to use with the 'compound' host model");
 
-    int cpu_id = find_model_description(surf_cpu_model_description, cpu_model_name);
-    surf_cpu_model_description[cpu_id].model_init_preparse();
+    const auto* cpu_model = find_model_description(surf_cpu_model_description, cpu_model_name);
+    cpu_model->model_init_preparse();
 
-    int network_id = find_model_description(surf_network_model_description, network_model_name);
-    surf_network_model_description[network_id].model_init_preparse();
+    const auto* network_model = find_model_description(surf_network_model_description, network_model_name);
+    network_model->model_init_preparse();
   }
 
   XBT_DEBUG("Call host_model_init");
-  int host_id = find_model_description(surf_host_model_description, host_model_name);
-  surf_host_model_description[host_id].model_init_preparse();
+  const auto* host_model = find_model_description(surf_host_model_description, host_model_name);
+  host_model->model_init_preparse();
 
   XBT_DEBUG("Call vm_model_init");
   /* ideally we should get back the pointer to CpuModel from model_init_preparse(), but this
@@ -61,8 +60,8 @@ static void surf_config_models_setup()
       simgrid::s4u::Engine::get_instance()->get_netzone_root()->get_impl()->get_cpu_pm_model().get());
 
   XBT_DEBUG("Call disk_model_init");
-  int disk_id = find_model_description(surf_disk_model_description, disk_model_name);
-  surf_disk_model_description[disk_id].model_init_preparse();
+  const auto* disk_model = find_model_description(surf_disk_model_description, disk_model_name);
+  disk_model->model_init_preparse();
 }
 
 NetZoneImpl::NetZoneImpl(const std::string& name) : piface_(this), name_(name)
@@ -71,11 +70,9 @@ NetZoneImpl::NetZoneImpl(const std::string& name) : piface_(this), name_(name)
    * Without globals and with current surf_*_model_description init functions, we need
    * the root netzone to exist when creating the models.
    * This was usually done at sg_platf.cpp, during XML parsing */
-  if (not s4u::Engine::get_instance()->get_netzone_root())
+  if (not s4u::Engine::get_instance()->get_netzone_root()) {
     s4u::Engine::get_instance()->set_netzone_root(&piface_);
-
-  static bool surf_parse_models_setup_already_called = false;
-  if (not surf_parse_models_setup_already_called) {
+    /* root netzone set, initialize models */
     simgrid::s4u::Engine::on_platform_creation();
 
     /* Initialize the surf models. That must be done after we got all config, and before we need the models.
@@ -85,7 +82,6 @@ NetZoneImpl::NetZoneImpl(const std::string& name) : piface_(this), name_(name)
      * (FIXME: check it out by creating a file beginning with one of these tags)
      * but cluster and peer come down to zone creations, so putting this verification here is correct.
      */
-    surf_parse_models_setup_already_called = true;
     surf_config_models_setup();
   }
 
@@ -93,6 +89,9 @@ NetZoneImpl::NetZoneImpl(const std::string& name) : piface_(this), name_(name)
              "Refusing to create a second NetZone called '%s'.", get_cname());
   netpoint_ = new NetPoint(name_, NetPoint::Type::NetZone);
   XBT_DEBUG("NetZone '%s' created with the id '%u'", get_cname(), netpoint_->id());
+  _sg_cfg_init_status = 2; /* HACK: direct access to the global controlling the level of configuration to prevent
+                            * any further config now that we created some real content */
+  simgrid::s4u::NetZone::on_creation(piface_); // notify the signal
 }
 
 NetZoneImpl::~NetZoneImpl()
@@ -142,6 +141,9 @@ int NetZoneImpl::get_host_count() const
 
 s4u::Host* NetZoneImpl::create_host(const std::string& name, const std::vector<double>& speed_per_pstate)
 {
+  xbt_assert(cpu_model_pm_,
+             "Impossible to create host: %s. Invalid CPU model: nullptr. Have you set the parent of this NetZone: %s?",
+             name.c_str(), get_cname());
   auto* res = (new surf::HostImpl(name))->get_iface();
   res->set_netpoint((new NetPoint(name, NetPoint::Type::Host))->set_englobing_zone(this));
 
@@ -152,11 +154,18 @@ s4u::Host* NetZoneImpl::create_host(const std::string& name, const std::vector<d
 
 s4u::Link* NetZoneImpl::create_link(const std::string& name, const std::vector<double>& bandwidths)
 {
+  xbt_assert(
+      network_model_,
+      "Impossible to create link: %s. Invalid network model: nullptr. Have you set the parent of this NetZone: %s?",
+      name.c_str(), get_cname());
   return network_model_->create_link(name, bandwidths)->get_iface();
 }
 
 s4u::Disk* NetZoneImpl::create_disk(const std::string& name, double read_bandwidth, double write_bandwidth)
 {
+  xbt_assert(disk_model_,
+             "Impossible to create disk: %s. Invalid disk model: nullptr. Have you set the parent of this NetZone: %s?",
+             name.c_str(), get_cname());
   auto* l = disk_model_->create_disk(name, read_bandwidth, write_bandwidth);
 
   return l->get_iface();
@@ -176,26 +185,26 @@ int NetZoneImpl::add_component(NetPoint* elm)
 }
 
 void NetZoneImpl::add_route(NetPoint* /*src*/, NetPoint* /*dst*/, NetPoint* /*gw_src*/, NetPoint* /*gw_dst*/,
-                            const std::vector<resource::LinkImpl*>& /*link_list*/, bool /*symmetrical*/)
+                            const std::vector<resource::LinkImpl*>& /*link_list_*/, bool /*symmetrical*/)
 {
   xbt_die("NetZone '%s' does not accept new routes (wrong class).", get_cname());
 }
 
 void NetZoneImpl::add_bypass_route(NetPoint* src, NetPoint* dst, NetPoint* gw_src, NetPoint* gw_dst,
-                                   std::vector<resource::LinkImpl*>& link_list, bool /* symmetrical */)
+                                   std::vector<resource::LinkImpl*>& link_list_, bool /* symmetrical */)
 {
   /* Argument validity checks */
   if (gw_dst) {
     XBT_DEBUG("Load bypassNetzoneRoute from %s@%s to %s@%s", src->get_cname(), gw_src->get_cname(), dst->get_cname(),
               gw_dst->get_cname());
-    xbt_assert(not link_list.empty(), "Bypass route between %s@%s and %s@%s cannot be empty.", src->get_cname(),
+    xbt_assert(not link_list_.empty(), "Bypass route between %s@%s and %s@%s cannot be empty.", src->get_cname(),
                gw_src->get_cname(), dst->get_cname(), gw_dst->get_cname());
     xbt_assert(bypass_routes_.find({src, dst}) == bypass_routes_.end(),
                "The bypass route between %s@%s and %s@%s already exists.", src->get_cname(), gw_src->get_cname(),
                dst->get_cname(), gw_dst->get_cname());
   } else {
     XBT_DEBUG("Load bypassRoute from %s to %s", src->get_cname(), dst->get_cname());
-    xbt_assert(not link_list.empty(), "Bypass route between %s and %s cannot be empty.", src->get_cname(),
+    xbt_assert(not link_list_.empty(), "Bypass route between %s and %s cannot be empty.", src->get_cname(),
                dst->get_cname());
     xbt_assert(bypass_routes_.find({src, dst}) == bypass_routes_.end(),
                "The bypass route between %s and %s already exists.", src->get_cname(), dst->get_cname());
@@ -203,7 +212,7 @@ void NetZoneImpl::add_bypass_route(NetPoint* src, NetPoint* dst, NetPoint* gw_sr
 
   /* Build a copy that will be stored in the dict */
   auto* newRoute = new BypassRoute(gw_src, gw_dst);
-  for (auto const& link : link_list)
+  for (auto const& link : link_list_)
     newRoute->links.push_back(link);
 
   /* Store it */
@@ -415,7 +424,7 @@ bool NetZoneImpl::get_bypass_route(NetPoint* src, NetPoint* dst,
 void NetZoneImpl::get_global_route(NetPoint* src, NetPoint* dst,
                                    /* OUT */ std::vector<resource::LinkImpl*>& links, double* latency)
 {
-  RouteCreationArgs route;
+  Route route;
 
   XBT_DEBUG("Resolve route from '%s' to '%s'", src->get_cname(), dst->get_cname());
 
@@ -433,26 +442,26 @@ void NetZoneImpl::get_global_route(NetPoint* src, NetPoint* dst,
 
   /* If src and dst are in the same netzone, life is good */
   if (src_ancestor == dst_ancestor) { /* SURF_ROUTING_BASE */
-    route.link_list = std::move(links);
+    route.link_list_ = std::move(links);
     common_ancestor->get_local_route(src, dst, &route, latency);
-    links = std::move(route.link_list);
+    links = std::move(route.link_list_);
     return;
   }
 
   /* Not in the same netzone, no bypass. We'll have to find our path between the netzones recursively */
 
   common_ancestor->get_local_route(src_ancestor->netpoint_, dst_ancestor->netpoint_, &route, latency);
-  xbt_assert((route.gw_src != nullptr) && (route.gw_dst != nullptr), "Bad gateways for route from '%s' to '%s'.",
+  xbt_assert((route.gw_src_ != nullptr) && (route.gw_dst_ != nullptr), "Bad gateways for route from '%s' to '%s'.",
              src->get_cname(), dst->get_cname());
 
   /* If source gateway is not our source, we have to recursively find our way up to this point */
-  if (src != route.gw_src)
-    get_global_route(src, route.gw_src, links, latency);
-  links.insert(links.end(), begin(route.link_list), end(route.link_list));
+  if (src != route.gw_src_)
+    get_global_route(src, route.gw_src_, links, latency);
+  links.insert(links.end(), begin(route.link_list_), end(route.link_list_));
 
   /* If dest gateway is not our destination, we have to recursively find our way from this point */
-  if (route.gw_dst != dst)
-    get_global_route(route.gw_dst, dst, links, latency);
+  if (route.gw_dst_ != dst)
+    get_global_route(route.gw_dst_, dst, links, latency);
 }
 
 void NetZoneImpl::seal()
@@ -470,6 +479,7 @@ void NetZoneImpl::seal()
     sub_net->seal();
   }
   sealed_ = true;
+  s4u::NetZone::on_seal(piface_);
 }
 
 void NetZoneImpl::set_parent(NetZoneImpl* parent)

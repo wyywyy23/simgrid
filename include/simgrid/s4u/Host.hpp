@@ -85,7 +85,7 @@ public:
 
   kernel::routing::NetPoint* get_netpoint() const { return pimpl_netpoint_; }
 
-  int get_actor_count() const;
+  size_t get_actor_count() const;
   std::vector<ActorPtr> get_all_actors() const;
 
   /** Turns that host on if it was previously off
@@ -221,7 +221,7 @@ private:
 public:
 #ifndef DOXYGEN
   /** DO NOT USE DIRECTLY (@todo: these should be protected, once our code is clean) */
-  kernel::resource::Cpu* pimpl_cpu = nullptr;
+  kernel::resource::CpuImpl* pimpl_cpu = nullptr;
 #endif
 };
 } // namespace s4u

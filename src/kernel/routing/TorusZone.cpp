@@ -5,11 +5,12 @@
 
 #include "simgrid/kernel/routing/TorusZone.hpp"
 #include "simgrid/kernel/routing/NetPoint.hpp"
+#include "simgrid/s4u/Host.hpp"
 #include "src/surf/network_interface.hpp"
-#include "src/surf/xml/platf_private.hpp"
 
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <numeric>
 #include <string>
 #include <vector>
 
@@ -19,7 +20,7 @@ namespace simgrid {
 namespace kernel {
 namespace routing {
 
-void TorusZone::create_links_for_node(ClusterCreationArgs* cluster, int id, int rank, unsigned int position)
+void TorusZone::create_torus_links(int id, int rank, unsigned int position)
 {
   /* Create all links that exist in the torus. Each rank creates @a dimensions-1 links */
   int dim_product = 1; // Needed to calculate the next neighbor_id
@@ -32,16 +33,19 @@ void TorusZone::create_links_for_node(ClusterCreationArgs* cluster, int id, int 
                                ? rank - (current_dimension - 1) * dim_product
                                : rank + dim_product;
     // name of neighbor is not right for non contiguous cluster radicals (as id != rank in this case)
-    std::string link_id =
-        std::string(cluster->id) + "_link_from_" + std::to_string(id) + "_to_" + std::to_string(neighbor_rank_id);
+    std::string link_id = get_name() + "_link_from_" + std::to_string(id) + "_to_" + std::to_string(neighbor_rank_id);
     const s4u::Link* linkup;
     const s4u::Link* linkdown;
-    if (cluster->sharing_policy == s4u::Link::SharingPolicy::SPLITDUPLEX) {
-      linkup   = create_link(link_id + "_UP", std::vector<double>{cluster->bw})->set_latency(cluster->lat)->seal();
-      linkdown = create_link(link_id + "_DOWN", std::vector<double>{cluster->bw})->set_latency(cluster->lat)->seal();
+    if (get_link_sharing_policy() == s4u::Link::SharingPolicy::SPLITDUPLEX) {
+      linkup = create_link(link_id + "_UP", std::vector<double>{get_link_bandwidth()})
+                   ->set_latency(get_link_latency())
+                   ->seal();
+      linkdown = create_link(link_id + "_DOWN", std::vector<double>{get_link_bandwidth()})
+                     ->set_latency(get_link_latency())
+                     ->seal();
 
     } else {
-      linkup   = create_link(link_id, std::vector<double>{cluster->bw})->set_latency(cluster->lat)->seal();
+      linkup = create_link(link_id, std::vector<double>{get_link_bandwidth()})->set_latency(get_link_latency())->seal();
       linkdown = linkup;
     }
     /*
@@ -54,22 +58,31 @@ void TorusZone::create_links_for_node(ClusterCreationArgs* cluster, int id, int 
   }
 }
 
-void TorusZone::parse_specific_arguments(ClusterCreationArgs* cluster)
+std::vector<unsigned int> TorusZone::parse_topo_parameters(const std::string& topo_parameters)
 {
-  std::vector<std::string> dimensions;
-  boost::split(dimensions, cluster->topo_parameters, boost::is_any_of(","));
+  std::vector<std::string> dimensions_str;
+  boost::split(dimensions_str, topo_parameters, boost::is_any_of(","));
+  std::vector<unsigned int> dimensions;
 
-  if (not dimensions.empty()) {
+  if (not dimensions_str.empty()) {
     /* We are in a torus cluster
      * Parse attribute dimensions="dim1,dim2,dim3,...,dimN" and save them into a vector.
      * Additionally, we need to know how many ranks we have in total
      */
-    std::transform(begin(dimensions), end(dimensions), std::back_inserter(dimensions_), surf_parse_get_int);
-    set_num_links_per_node(dimensions_.size());
+    std::transform(begin(dimensions_str), end(dimensions_str), std::back_inserter(dimensions),
+                   [](const std::string& s) { return std::stoi(s); });
   }
+  return dimensions;
 }
 
-void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs* route, double* lat)
+void TorusZone::set_topology(const std::vector<unsigned int>& dimensions)
+{
+  xbt_assert(not dimensions.empty(), "Torus dimensions cannot be empty");
+  dimensions_ = dimensions;
+  set_num_links_per_node(dimensions_.size());
+}
+
+void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, Route* route, double* lat)
 {
   XBT_VERB("torus getLocalRoute from '%s'[%u] to '%s'[%u]", src->get_cname(), src->id(), dst->get_cname(), dst->id());
 
@@ -79,7 +92,7 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
   if (src->id() == dst->id() && has_loopback()) {
     resource::LinkImpl* uplink = get_uplink_from(node_pos(src->id()));
 
-    route->link_list.push_back(uplink);
+    route->link_list_.push_back(uplink);
     if (lat)
       *lat += uplink->get_latency();
     return;
@@ -94,11 +107,11 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
    * Arrays that hold the coordinates of the current node and the target; comparing the values at the i-th position of
    * both arrays, we can easily assess whether we need to route into this dimension or not.
    */
-  const unsigned int dsize = dimensions_.size();
+  const unsigned long dsize = dimensions_.size();
   std::vector<unsigned int> myCoords(dsize);
   std::vector<unsigned int> targetCoords(dsize);
   unsigned int dim_size_product = 1;
-  for (unsigned i = 0; i < dsize; i++) {
+  for (unsigned long i = 0; i < dsize; i++) {
     unsigned cur_dim_size = dimensions_[i];
     myCoords[i]           = (src->id() / dim_size_product) % cur_dim_size;
     targetCoords[i]       = (dst->id() / dim_size_product) % cur_dim_size;
@@ -109,9 +122,8 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
    * linkOffset describes the offset where the link we want to use is stored(+1 is added because each node has a link
    * from itself to itself, which can only be the case if src->m_id == dst->m_id -- see above for this special case)
    */
-  int nodeOffset = (dsize + 1) * src->id();
+  int linkOffset = (dsize + 1) * src->id();
 
-  int linkOffset  = nodeOffset;
   bool use_lnk_up = false; // Is this link of the form "cur -> next" or "next -> cur"? false means: next -> cur
   unsigned int current_node = src->id();
   while (current_node != dst->id()) {
@@ -132,7 +144,6 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
             next_node = (current_node + dim_product);
 
           // HERE: We use *CURRENT* node for calculation (as opposed to next_node)
-          nodeOffset = node_pos(current_node);
           linkOffset = node_pos_with_loopback_limiter(current_node) + j;
           use_lnk_up = true;
           assert(linkOffset >= 0);
@@ -143,7 +154,6 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
             next_node = (current_node - dim_product);
 
           // HERE: We use *next* node for calculation (as opposed to current_node!)
-          nodeOffset = node_pos(next_node);
           linkOffset = node_pos_with_loopback_limiter(next_node) + j;
           use_lnk_up = false;
 
@@ -158,7 +168,7 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
     }
 
     if (has_limiter()) { // limiter for sender
-      route->link_list.push_back(get_uplink_from(node_pos_with_loopback(nodeOffset)));
+      route->link_list_.push_back(get_uplink_from(node_pos_with_loopback(current_node)));
     }
 
     resource::LinkImpl* lnk;
@@ -167,20 +177,56 @@ void TorusZone::get_local_route(NetPoint* src, NetPoint* dst, RouteCreationArgs*
     else
       lnk = get_downlink_to(linkOffset);
 
-    route->link_list.push_back(lnk);
+    route->link_list_.push_back(lnk);
     if (lat)
       *lat += lnk->get_latency();
 
     current_node = next_node;
   }
+  if (has_limiter()) { // limiter for receiver/destination
+    route->link_list_.push_back(get_downlink_to(node_pos_with_loopback(dst->id())));
+  }
+  // set gateways (if any)
+  route->gw_src_ = get_gateway(src->id());
+  route->gw_dst_ = get_gateway(dst->id());
 }
+
 } // namespace routing
 } // namespace kernel
 
 namespace s4u {
-NetZone* create_torus_zone(const std::string& name)
+
+NetZone* create_torus_zone(const std::string& name, const NetZone* parent, const std::vector<unsigned int>& dimensions,
+                           const ClusterCallbacks& set_callbacks, double bandwidth, double latency,
+                           Link::SharingPolicy sharing_policy)
 {
-  return (new kernel::routing::TorusZone(name))->get_iface();
+  int tot_elements = std::accumulate(dimensions.begin(), dimensions.end(), 1, std::multiplies<>());
+  if (dimensions.empty() || tot_elements <= 0)
+    throw std::invalid_argument("TorusZone: incorrect dimensions parameter, each value must be > 0");
+  if (bandwidth <= 0)
+    throw std::invalid_argument("TorusZone: incorrect bandwidth for internode communication, bw=" +
+                                std::to_string(bandwidth));
+  if (latency < 0)
+    throw std::invalid_argument("TorusZone: incorrect latency for internode communication, lat=" +
+                                std::to_string(latency));
+
+  auto* zone = new kernel::routing::TorusZone(name);
+  zone->set_topology(dimensions);
+  if (parent)
+    zone->set_parent(parent->get_impl());
+
+  zone->set_link_characteristics(bandwidth, latency, sharing_policy);
+
+  for (int i = 0; i < tot_elements; i++) {
+    kernel::routing::NetPoint* netpoint;
+    Link* limiter;
+    Link* loopback;
+    zone->fill_leaf_from_cb(i, dimensions, set_callbacks, &netpoint, &loopback, &limiter);
+
+    zone->create_torus_links(netpoint->id(), i, zone->node_pos_with_loopback_limiter(netpoint->id()));
+  }
+
+  return zone->get_iface();
 }
 } // namespace s4u
 

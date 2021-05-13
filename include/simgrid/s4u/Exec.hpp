@@ -32,11 +32,11 @@ namespace s4u {
 class XBT_PUBLIC Exec : public Activity_T<Exec> {
   friend kernel::activity::ExecImpl;
   bool parallel_ = false;
-  double start_time_ = -1.0;
-  double finish_time_ = -1.0;
 
 protected:
   explicit Exec(kernel::activity::ExecImplPtr pimpl);
+
+  void complete(Activity::State state) override;
 
 public:
 #ifndef DOXYGEN
@@ -48,14 +48,12 @@ public:
 
   static ExecPtr init();
   Exec* start() override;
-  Exec* wait() override;
-  Exec* wait_for(double timeout) override;
+
   /*! take a vector of s4u::ExecPtr and return when one of them is finished.
    * The return value is the rank of the first finished ExecPtr. */
   static int wait_any(std::vector<ExecPtr>* execs) { return wait_any_for(execs, -1); }
   /*! Same as wait_any, but with a timeout. If the timeout occurs, parameter last is returned.*/
   static int wait_any_for(std::vector<ExecPtr>* execs, double timeout);
-  Exec* cancel() override;
 
   /** @brief On sequential executions, returns the amount of flops that remain to be done; This cannot be used on
    * parallel executions. */
@@ -74,9 +72,8 @@ public:
 
   Host* get_host() const;
   unsigned int get_host_number() const;
-  double get_start_time() const { return start_time_; }
-  double get_finish_time() const { return finish_time_; }
-  void set_finish_time(double finish_time) { finish_time_ = finish_time; }
+  double get_start_time() const;
+  double get_finish_time() const;
   double get_cost() const;
   bool is_parallel() const { return parallel_; }
   bool is_assigned() const override;

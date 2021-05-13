@@ -11,74 +11,73 @@
 #include "simgrid/s4u/Host.hpp"
 #include "simgrid/s4u/NetZone.hpp"
 #include "src/surf/network_interface.hpp"
-#include "src/surf/surf_interface.hpp"    // create models
-#include "src/surf/xml/platf_private.hpp" // RouteCreationArgs and friends
-
-namespace {
-class EngineWrapper {
-  int argc = 1;
-  char* argv;
-  simgrid::s4u::Engine e;
-
-public:
-  explicit EngineWrapper(std::string name) : argv(&name[0]), e(&argc, &argv) {}
-};
-} // namespace
 
 TEST_CASE("kernel::routing::StarZone: Creating Zone", "[creation]")
 {
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
 
   REQUIRE(simgrid::s4u::create_star_zone("test"));
 }
 
-// One day we may be able to test contracts and asserts with catch2
-// https://github.com/catchorg/Catch2/issues/853
-TEST_CASE("kernel::routing::StarZone: Adding routes (hosts): assert", "[.][assert]")
+TEST_CASE("kernel::routing::StarZone: Adding routes (hosts): exception", "")
 {
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone      = new simgrid::kernel::routing::StarZone("test");
   auto* netpoint1 = new simgrid::kernel::routing::NetPoint("netpoint1", simgrid::kernel::routing::NetPoint::Type::Host);
   auto* netpoint2 = new simgrid::kernel::routing::NetPoint("netpoint2", simgrid::kernel::routing::NetPoint::Type::Host);
 
-  SECTION("src and dst: nullptr") { zone->add_route(nullptr, nullptr, nullptr, nullptr, {}, false); }
+  SECTION("src and dst: nullptr")
+  {
+    REQUIRE_THROWS_AS(zone->add_route(nullptr, nullptr, nullptr, nullptr, {}, false), std::invalid_argument);
+  }
 
-  SECTION("src: nullptr and symmetrical: true") { zone->add_route(nullptr, netpoint2, nullptr, nullptr, {}, true); }
+  SECTION("src: nullptr and symmetrical: true")
+  {
+    REQUIRE_THROWS_AS(zone->add_route(nullptr, netpoint2, nullptr, nullptr, {}, true), std::invalid_argument);
+  }
 
-  SECTION("src and dst: not nullptr") { zone->add_route(netpoint1, netpoint2, nullptr, nullptr, {}, false); }
+  SECTION("src and dst: not nullptr")
+  {
+    REQUIRE_THROWS_AS(zone->add_route(netpoint1, netpoint2, nullptr, nullptr, {}, false), std::invalid_argument);
+  }
 }
 
-TEST_CASE("kernel::routing::StarZone: Adding routes (netzones): assert", "[.][assert]")
+TEST_CASE("kernel::routing::StarZone: Adding routes (netzones): exception", "")
 {
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone = new simgrid::kernel::routing::StarZone("test");
   auto* netpoint1 =
       new simgrid::kernel::routing::NetPoint("netpoint1", simgrid::kernel::routing::NetPoint::Type::NetZone);
   auto* netpoint2 =
       new simgrid::kernel::routing::NetPoint("netpoint2", simgrid::kernel::routing::NetPoint::Type::NetZone);
 
-  SECTION("src: is a netzone and gw_src: nullptr") { zone->add_route(netpoint1, nullptr, nullptr, nullptr, {}, false); }
+  SECTION("src: is a netzone and gw_src: nullptr")
+  {
+    REQUIRE_THROWS_AS(zone->add_route(netpoint1, nullptr, nullptr, nullptr, {}, false), std::invalid_argument);
+  }
 
   SECTION("src: is a netzone and gw_src: is a netzone")
   {
-    zone->add_route(netpoint1, nullptr, netpoint2, nullptr, {}, false);
+    REQUIRE_THROWS_AS(zone->add_route(netpoint1, nullptr, netpoint2, nullptr, {}, false), std::invalid_argument);
   }
 
-  SECTION("dst: is a netzone and gw_dst: nullptr") { zone->add_route(nullptr, netpoint2, nullptr, nullptr, {}, false); }
+  SECTION("dst: is a netzone and gw_dst: nullptr")
+  {
+    REQUIRE_THROWS_AS(zone->add_route(nullptr, netpoint2, nullptr, nullptr, {}, false), std::invalid_argument);
+  }
 
   SECTION("dst: is a netzone and gw_dst: is a netzone")
   {
-    zone->add_route(nullptr, netpoint2, nullptr, netpoint1, {}, false);
+    REQUIRE_THROWS_AS(zone->add_route(nullptr, netpoint2, nullptr, netpoint1, {}, false), std::invalid_argument);
   }
 }
 
+// One day we may be able to test contracts and asserts with catch2
+// https://github.com/catchorg/Catch2/issues/853
 TEST_CASE("kernel::routing::StarZone: Get routes: assert", "[.][assert]")
 {
-  /* workaround to initialize things, they must be done in this particular order */
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone = new simgrid::kernel::routing::StarZone("test");
-  surf_network_model_init_LegrandVelho();
-  surf_cpu_model_init_Cas01();
 
   const auto* host1 = zone->create_host("netpoint1", {100});
   const auto* host2 = zone->create_host("netpoint2", {100});
@@ -92,7 +91,7 @@ TEST_CASE("kernel::routing::StarZone: Get routes: assert", "[.][assert]")
     zone->add_route(host1->get_netpoint(), nullptr, nullptr, nullptr, links, true);
     zone->add_route(nullptr, host2->get_netpoint(), nullptr, nullptr, links2, false);
     double lat;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(host2->get_netpoint(), host1->get_netpoint(), &route, &lat);
   }
 
@@ -101,14 +100,14 @@ TEST_CASE("kernel::routing::StarZone: Get routes: assert", "[.][assert]")
     zone->add_route(host1->get_netpoint(), nullptr, nullptr, nullptr, links, false);
     zone->add_route(host2->get_netpoint(), nullptr, nullptr, nullptr, links2, true);
     double lat;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(host2->get_netpoint(), host1->get_netpoint(), &route, &lat);
   }
 }
 
 TEST_CASE("kernel::routing::StarZone: Adding routes (hosts): valid", "")
 {
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone     = new simgrid::kernel::routing::StarZone("test");
   auto* netpoint = new simgrid::kernel::routing::NetPoint("netpoint1", simgrid::kernel::routing::NetPoint::Type::Host);
 
@@ -132,7 +131,7 @@ TEST_CASE("kernel::routing::StarZone: Adding routes (hosts): valid", "")
 
 TEST_CASE("kernel::routing::StarZone: Adding routes (netzones): valid", "")
 {
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone     = new simgrid::kernel::routing::StarZone("test");
   auto* netpoint = new simgrid::kernel::routing::NetPoint("netpoint1", simgrid::kernel::routing::NetPoint::Type::Host);
   auto* gw       = new simgrid::kernel::routing::NetPoint("gw1", simgrid::kernel::routing::NetPoint::Type::Router);
@@ -144,11 +143,8 @@ TEST_CASE("kernel::routing::StarZone: Adding routes (netzones): valid", "")
 
 TEST_CASE("kernel::routing::StarZone: Get routes (hosts)", "")
 {
-  /* workaround to initialize things, they must be done in this particular order */
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone = new simgrid::kernel::routing::StarZone("test");
-  surf_network_model_init_LegrandVelho();
-  surf_cpu_model_init_Cas01();
 
   const auto* host1 = zone->create_host("netpoint1", {100});
   const auto* host2 = zone->create_host("netpoint2", {100});
@@ -164,14 +160,14 @@ TEST_CASE("kernel::routing::StarZone: Get routes (hosts)", "")
     zone->seal();
 
     double lat = 0.0;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(host1->get_netpoint(), host2->get_netpoint(), &route, &lat);
     REQUIRE(lat == 30);
-    REQUIRE(route.gw_src == nullptr);
-    REQUIRE(route.gw_dst == nullptr);
-    REQUIRE(route.link_list.size() == 2);
-    REQUIRE(route.link_list[0]->get_name() == "link1");
-    REQUIRE(route.link_list[1]->get_name() == "link2");
+    REQUIRE(route.gw_src_ == nullptr);
+    REQUIRE(route.gw_dst_ == nullptr);
+    REQUIRE(route.link_list_.size() == 2);
+    REQUIRE(route.link_list_[0]->get_name() == "link1");
+    REQUIRE(route.link_list_[1]->get_name() == "link2");
   }
 
   SECTION("Get route: shared link(backbone)")
@@ -189,13 +185,13 @@ TEST_CASE("kernel::routing::StarZone: Get routes (hosts)", "")
     zone->seal();
 
     double lat = 0.0;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(host1->get_netpoint(), host2->get_netpoint(), &route, &lat);
     REQUIRE(lat == 130);
-    REQUIRE(route.link_list.size() == 3);
-    REQUIRE(route.link_list[0]->get_name() == "link1");
-    REQUIRE(route.link_list[1]->get_name() == "backbone");
-    REQUIRE(route.link_list[2]->get_name() == "link2");
+    REQUIRE(route.link_list_.size() == 3);
+    REQUIRE(route.link_list_[0]->get_name() == "link1");
+    REQUIRE(route.link_list_[1]->get_name() == "backbone");
+    REQUIRE(route.link_list_[2]->get_name() == "link2");
   }
 
   SECTION("Get route: loopback")
@@ -209,22 +205,19 @@ TEST_CASE("kernel::routing::StarZone: Get routes (hosts)", "")
     zone->seal();
 
     double lat = 0.0;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(host1->get_netpoint(), host1->get_netpoint(), &route, &lat);
     REQUIRE(lat == 110);
-    REQUIRE(route.link_list.size() == 2);
-    REQUIRE(route.link_list[0]->get_name() == "link1");
-    REQUIRE(route.link_list[1]->get_name() == "backbone");
+    REQUIRE(route.link_list_.size() == 2);
+    REQUIRE(route.link_list_[0]->get_name() == "link1");
+    REQUIRE(route.link_list_[1]->get_name() == "backbone");
   }
 }
 
 TEST_CASE("kernel::routing::StarZone: Get routes (netzones)", "")
 {
-  /* workaround to initialize things, they must be done in this particular order */
-  EngineWrapper e("test");
+  simgrid::s4u::Engine e("test");
   auto* zone = new simgrid::kernel::routing::StarZone("test");
-  surf_network_model_init_LegrandVelho();
-  surf_cpu_model_init_Cas01();
 
   auto* subzone1 =
       (new simgrid::kernel::routing::NetPoint("subzone1", simgrid::kernel::routing::NetPoint::Type::NetZone))
@@ -246,13 +239,27 @@ TEST_CASE("kernel::routing::StarZone: Get routes (netzones)", "")
     zone->seal();
 
     double lat = 0.0;
-    simgrid::kernel::routing::RouteCreationArgs route;
+    simgrid::kernel::routing::Route route;
     zone->get_local_route(subzone1, subzone2, &route, &lat);
     REQUIRE(lat == 30);
-    REQUIRE(route.gw_src == router1);
-    REQUIRE(route.gw_dst == router2);
-    REQUIRE(route.link_list.size() == 2);
-    REQUIRE(route.link_list[0]->get_name() == "link1");
-    REQUIRE(route.link_list[1]->get_name() == "link2");
+    REQUIRE(route.gw_src_ == router1);
+    REQUIRE(route.gw_dst_ == router2);
+    REQUIRE(route.link_list_.size() == 2);
+    REQUIRE(route.link_list_[0]->get_name() == "link1");
+    REQUIRE(route.link_list_[1]->get_name() == "link2");
+  }
+}
+
+TEST_CASE("kernel::routing::StarZone: mix new routes and hosts", "")
+{
+  simgrid::s4u::Engine e("test");
+  auto* zone = simgrid::s4u::create_star_zone("test");
+
+  simgrid::s4u::Link* link = zone->create_link("my_link", 1e6)->seal();
+  for (int i = 0; i < 10; i++) {
+    std::string cpu_name          = "CPU" + std::to_string(i);
+    const simgrid::s4u::Host* cpu = zone->create_host(cpu_name, 1e9)->seal();
+    REQUIRE_NOTHROW(
+        zone->add_route(cpu->get_netpoint(), nullptr, nullptr, nullptr, std::vector<simgrid::s4u::Link*>{link}, true));
   }
 }

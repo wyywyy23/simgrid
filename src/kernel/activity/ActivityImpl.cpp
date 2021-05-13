@@ -5,6 +5,8 @@
 
 #include "src/kernel/activity/ActivityImpl.hpp"
 #include "simgrid/modelchecker.h"
+#include "src/kernel/activity/SynchroRaw.hpp"
+#include "src/kernel/actor/SimcallObserver.hpp"
 #include "src/mc/mc_replay.hpp"
 #include "src/simix/smx_private.hpp"
 #include <boost/range/algorithm.hpp>
@@ -71,31 +73,22 @@ void ActivityImpl::wait_for(actor::ActorImpl* issuer, double timeout)
   /* Associate this simcall to the synchro */
   register_simcall(&issuer->simcall_);
 
-  if (MC_is_active() || MC_record_replay_is_active()) {
-    int idx = issuer->simcall_.mc_value_;
-    if (idx == 0) {
-      state_ = State::DONE;
-    } else {
-      /* If we reached this point, the wait simcall must have a timeout */
-      /* Otherwise it shouldn't be enabled and executed by the MC */
-      if (timeout < 0.0)
-        THROW_IMPOSSIBLE;
-      state_ = State::TIMEOUT;
-    }
-    finish();
-    return;
-  }
+  xbt_assert(not MC_is_active() && not MC_record_replay_is_active(), "MC is currently not supported here.");
 
   /* If the synchro is already finished then perform the error handling */
-  if (state_ != State::RUNNING)
-    finish();
-  else if (timeout == 0.) {
-    // still running and timeout == 0 ? We need to report a timeout
-    state_ = State::TIMEOUT;
+  if (state_ != State::RUNNING) {
     finish();
   } else {
     /* we need a sleep action (even when the timeout is infinite) to be notified of host failures */
-    set_timeout(timeout);
+    RawImplPtr synchro(new RawImpl([this, issuer]() {
+      this->unregister_simcall(&issuer->simcall_);
+      issuer->waiting_synchro_ = nullptr;
+      auto* observer = dynamic_cast<kernel::actor::ActivityWaitSimcall*>(issuer->simcall_.observer_);
+      xbt_assert(observer != nullptr);
+      observer->set_result(true);
+    }));
+    synchro->set_host(issuer->get_host()).set_timeout(timeout).start();
+    synchro->register_simcall(&issuer->simcall_);
   }
 }
 

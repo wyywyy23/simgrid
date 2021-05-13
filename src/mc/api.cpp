@@ -5,6 +5,7 @@
 #include "src/kernel/actor/SimcallObserver.hpp"
 #include "src/mc/Session.hpp"
 #include "src/mc/checker/Checker.hpp"
+#include "src/mc/mc_base.hpp"
 #include "src/mc/mc_comm_pattern.hpp"
 #include "src/mc/mc_exit.hpp"
 #include "src/mc/mc_pattern.hpp"
@@ -828,7 +829,7 @@ std::string Api::request_to_string(smx_simcall_t req, int value) const
       break;
 
     default:
-      type = SIMIX_simcall_name(req->call_);
+      type = SIMIX_simcall_name(*req);
       args = "??";
       break;
   }

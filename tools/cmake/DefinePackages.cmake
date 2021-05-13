@@ -871,6 +871,7 @@ set(DOC_SOURCES
   docs/manpages/tesh.pod
 
   docs/Build.sh
+  docs/README.md
   docs/bin/extract_logs_hierarchy.pl
   docs/requirements.txt
   docs/source/conf.py
@@ -916,6 +917,7 @@ set(DOC_SOURCES
   docs/source/Deploying_your_application.rst
   docs/source/Experimental_setup.rst
   docs/source/index.rst
+  docs/source/intl.rst
   docs/source/Introduction.rst
   docs/source/Installing_SimGrid.rst
   docs/source/Start_your_own_project.rst
@@ -952,6 +954,8 @@ set(DOC_SOURCES
   docs/source/tuto_smpi/img/lu.S.4.png
   docs/source/tuto_smpi/gemm_mpi.cpp
   docs/source/tuto_smpi/roundtrip.c
+
+  docs/source/Tutorial_Model-checking.rst
 
   CITATION.bib
   )
