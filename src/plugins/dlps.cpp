@@ -220,7 +220,7 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
     link_idx++;
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
-      if (dlps->is_enabled()) {
+      if (dlps->is_enabled() && action.get_size() > 0) {
         link->get_iface()->add_to_active_action_map(action.get_id(), now, now + (link_idx - 1) * action.get_size() / (link->get_bandwidth() * sg_bandwidth_factor));
         XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
         dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time());
@@ -240,7 +240,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
     link_idx++;
     if (link != nullptr && link->get_sharing_policy() != simgrid::s4u::Link::SharingPolicy::WIFI) {
       auto dlps = link->get_iface()->extension<DLPS>();
-      if (dlps->is_enabled()) {
+      if (dlps->is_enabled() && action.get_size() > 0) {
         if ((action.get_state() == simgrid::kernel::resource::Action::State::FINISHED)
          || (action.get_state() == simgrid::kernel::resource::Action::State::FAILED)
          || (action.get_state() == simgrid::kernel::resource::Action::State::IGNORED)) {

@@ -185,7 +185,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   double latency = 0.0;
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
-  if (rate == -1.0) rate = 300000000000.0 / 8;
+//  if (rate == -1.0) rate = 300000000000.0 / 8;
 //  if (size ==  0.0) size = 1024.0;
 
   XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
@@ -282,7 +282,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
     // link->get_iface()->set_next_wake(now + (link_idx - 1) * size / bandwidth_bound);
 
     // If DLPS not enabled, do nothing
-    if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled()) {
+    if (not link->get_iface()->extension<simgrid::plugin::DLPS>()->is_enabled() || size <= 0) {
 
     // If the link has some active actions in progress
     } else if (link->get_iface()->has_active_actions_before(now)) {
