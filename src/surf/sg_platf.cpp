@@ -207,7 +207,7 @@ static simgrid::s4u::Link* sg_platf_cluster_create_limiter(const simgrid::kernel
 }
 
 /** @brief Create Torus, Fat-Tree and Dragonfly clusters */
-static void sg_platf_new_cluster_hierarchical(const simgrid::kernel::routing::ClusterCreationArgs* cluster)
+static void sg_platf_new_cluster_hierarchical(simgrid::kernel::routing::ClusterCreationArgs* cluster)
 {
   using namespace std::placeholders;
   using simgrid::kernel::routing::DragonflyZone;
@@ -247,6 +247,15 @@ static void sg_platf_new_cluster_hierarchical(const simgrid::kernel::routing::Cl
     default:
       THROW_IMPOSSIBLE;
   }
+
+  // Add a router.
+  XBT_DEBUG(" ");
+  XBT_DEBUG("<router id=\"%s\"/>", cluster->router_id.c_str());
+  if (cluster->router_id.empty())
+    cluster->router_id = std::string(cluster->prefix) + cluster->id + "_router" + cluster->suffix;
+  auto* router = zone->create_router(cluster->router_id);
+//  zone->add_route(router, nullptr, nullptr, nullptr, {});
+
   zone->seal();
 }
 
