@@ -185,7 +185,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   double latency = 0.0;
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
-//  if (rate == -1.0) rate = 300000000000.0 / 8;
+  if (rate == -1.0) rate = 300000000000.0 / 8;
 //  if (size ==  0.0) size = 1024.0;
 
   XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
