@@ -310,11 +310,11 @@ void sg_config_init(int *argc, char **argv)
   simgrid::config::bind_flag(dlps_delay_tuning, "network/dlps/delay/tuning",
                              "Delay in seconds for microring tuning.");
 
-  // dlps_delay_laser_stabilizing = 10.0e-9;
+  // dlps_delay_laser_stabilizing = 100.0e-9;
   simgrid::config::bind_flag(dlps_delay_laser_stabilizing, "network/dlps/delay/laser-stabilizing",
                              "Delay in seconds for laser stabilization.");
 
-  // dlps_delay_laser_waking = 1.0e-9;
+  // dlps_delay_laser_waking = 10.0e-9;
   simgrid::config::bind_flag(dlps_delay_laser_waking, "network/dlps/delay/laser-waking",
                              "Delay in seconds for laser waking");
 
@@ -325,6 +325,10 @@ void sg_config_init(int *argc, char **argv)
   // dlps_idle_threshold_laser = 300.0e-9;
   simgrid::config::bind_flag(dlps_idle_threshold_laser, "network/dlps/idle-threshold/laser",
                              "Threshold idle time in seconds to turn off laser.");
+
+  // idle predictor bits = 4;
+  simgrid::config::bind_flag(dlps_idle_predictor_bits, "network/dlps/idle-predictor-bits", "Number of bits for idle predictor. 0 means no prediction.");
+
 
   simgrid::config::declare_flag<double>("network/loopback-bw",
                                       "For network models with an implicit loopback link (L07, CM02, LV08), "

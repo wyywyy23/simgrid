@@ -26,11 +26,17 @@ double sg_bandwidth_factor   = 1.0; /* default value; can be set by model or fro
 double sg_weight_S_parameter = 0.0; /* default value; can be set by model or from command line */
 
 double dlps_delay_tuning = 1.0e-3;
-double dlps_delay_laser_stabilizing = 10.0e-9;
-double dlps_delay_laser_waking = 1.0e-9;
+double dlps_delay_laser_stabilizing = 100.0e-9;
+double dlps_delay_laser_waking = 10.0e-9;
 
-double dlps_idle_threshold_tuning = 1.0e-3;
-double dlps_idle_threshold_laser = 300.0e-9;
+// double dlps_idle_threshold_tuning = 1.0e-3;
+// double dlps_idle_threshold_laser = 300.0e-9;
+
+int dlps_idle_predictor_bits = 4;
+
+double dlps_idle_threshold_laser = 50.0e-3 * 24 * (dlps_delay_laser_stabilizing - dlps_delay_laser_waking) / 75.0e-3;
+
+double dlps_idle_threshold_tuning = 50.0e-3 * 24 * dlps_delay_tuning / (5.8e-3 * 24);
 
 /************************************************************************/
 /* New model based on optimizations discussed during Pedro Velho's thesis*/
@@ -185,8 +191,8 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
   double latency = 0.0;
   std::vector<LinkImpl*> back_route;
   std::vector<LinkImpl*> route;
-  if (rate == -1.0) rate = 300000000000.0 / 8;
-//  if (size ==  0.0) size = 1024.0;
+  if (rate == -1.0) rate = 720000000000.0 / 8;
+  if (size <= 1024.0) rate = 360000000000.0 / 8;
 
   XBT_INFO("(%s,%s,%g,%g)", src->get_cname(), dst->get_cname(), size, rate);
 
@@ -293,7 +299,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
                                         link->get_iface()->get_last_state() : s4u::Link::State::ON);
 
     // If the link has been in a long idle
-    } else if (link->get_iface()->get_last_busy() < 0 || now - link->get_iface()->get_last_busy() > dlps_idle_threshold_tuning) {
+    } else if (link->get_iface()->get_last_busy() < 0 || now - link->get_iface()->get_last_busy() > link->get_iface()->extension<simgrid::plugin::DLPS>()->get_idle_threshold_tuning()) {
       this_latency += dlps_mode == "full" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));
@@ -306,7 +312,7 @@ Action* NetworkCm02Model::communicate(s4u::Host* src, s4u::Host* dst, double siz
         link->get_iface()->interval_recorder.push_back(now - link->get_iface()->get_last_busy());
 
     // If the link has been in a medium idle
-    } else if (now - link->get_iface()->get_last_busy() > dlps_idle_threshold_laser) {
+    } else if (now - link->get_iface()->get_last_busy() > link->get_iface()->extension<simgrid::plugin::DLPS>()->get_idle_threshold_laser()) {
       this_latency += dlps_mode == "full" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "laser" ? dlps_delay_laser_stabilizing : (
                       dlps_mode == "on-off" ? dlps_delay_tuning + dlps_delay_laser_stabilizing : 0.0));

@@ -21,13 +21,14 @@ public:
   void enable();
   void disable();
   void reset();
-  void update_on_comm_start(unsigned long, double);
-  void update_on_comm_end(unsigned long, double, double);
+  void update_on_comm_start(unsigned long, double, double);
+  void update_on_comm_end(unsigned long, double, double, double);
   void update_load();
 
   /// Getter methods.
   bool is_enabled() const;
   std::string get_dlps_mode() const;
+  int get_idle_predictor_bits() const;
   s4u::Link* get_s4u_link();
   double get_last_updated();
   double get_idle_threshold_laser();
@@ -38,12 +39,13 @@ public:
   double get_min_bytes_per_second();
   double get_max_bytes_per_second();
   
-  std::vector<std::tuple<double, unsigned long, std::string, double, double, double>> get_comm_trace() const { return comm_trace; }
+  std::vector<std::tuple<double, unsigned long, std::string, double, double, double, double, double, double, double>> get_comm_trace() const { return comm_trace; }
 
 private:
   s4u::Link* link_{};      /*< The link onto which this data is enabled*/
   bool is_enabled_{false}; /*< Whether the link is enabled or not*/
   std::string dlps_mode_{"none"}; /*< DLPS mode */
+  int predictor_bits_{4};
 
   double cumulated_bytes_{0.0};      /*< Cumulated load since last reset*/
   double cumulated_energy_{0.0};     /*< Cumulated energy since last reset*/
@@ -57,7 +59,7 @@ private:
 
   double data_rate_to_power(double rate, bool laser_on = true, bool tuning_on = true); /*< Compute power from data rate*/
 
-  std::vector<std::tuple<double, unsigned long, std::string, double, double, double>> comm_trace; /*< now, action_id, state, action_actual_start/finish, link_catering_start/finish, rate */
+  std::vector<std::tuple<double, unsigned long, std::string, double, double, double, double, double, double, double>> comm_trace; /*< now, action_id, state, action_actual_start/finish, link_catering_start/finish, rate, sequence, t1, t2 */
 };
 
 }

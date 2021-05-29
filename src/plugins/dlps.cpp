@@ -23,7 +23,7 @@ namespace plugin {
 
 xbt::Extension<s4u::Link, DLPS> DLPS::EXTENSION_ID;
 
-DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false), dlps_mode_(simgrid::config::get_value<std::string>("network/dlps"))
+DLPS::DLPS(simgrid::s4u::Link* ptr) : link_(ptr), is_enabled_(false), dlps_mode_(simgrid::config::get_value<std::string>("network/dlps")), predictor_bits_(simgrid::config::get_value<int>("network/dlps/idle-predictor-bits"))
 {
   idle_threshold_laser_ = dlps_idle_threshold_laser;
   idle_threshold_tuning_ = dlps_idle_threshold_tuning;
@@ -76,7 +76,7 @@ double DLPS::data_rate_to_power(double data_rate, bool laser_on, bool tuning_on)
 
 }
 
-void DLPS::update_on_comm_start(unsigned long action_id, double actual_start_time)
+void DLPS::update_on_comm_start(unsigned long action_id, double actual_start_time, double link_idx)
 {
   XBT_DEBUG("Updating load of link '%s' on communication start", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -89,30 +89,35 @@ void DLPS::update_on_comm_start(unsigned long action_id, double actual_start_tim
 
   s4u::Link::State last_state = link_->get_last_state();
 
-  comm_trace.push_back(std::make_tuple(now, action_id, "STARTING", actual_start_time, link_->get_catering_start_for_action(action_id), current_instantaneous_bytes_per_second));
+  comm_trace.push_back(std::make_tuple(now, action_id, "STARTING", actual_start_time, link_->get_catering_start_for_action(action_id), current_instantaneous_bytes_per_second, link_idx, idle_threshold_laser_, idle_threshold_tuning_, 0));
 
   // Update idle thresholds based on values in the circular buffer
-  /* if (dlps_mode_ == "full" || dlps_mode_ == "laser") {
-    
-    idle_threshold_laser_ = link_->interval_recorder[0] > dlps_idle_threshold_laser && link_->interval_recorder[1] > dlps_idle_threshold_laser ? 0.0 : (
-                             link_->interval_recorder[0] > idle_threshold_laser_ && link_->interval_recorder[1] > idle_threshold_laser_ ? link_->interval_recorder[1] : (
-                             link_->interval_recorder[0] < idle_threshold_laser_ && link_->interval_recorder[1] < idle_threshold_laser_ ? link_->interval_recorder[1] : idle_threshold_laser_));
+  if (dlps_mode_ == "full" && predictor_bits_ != 0) {
+    if (predictor_bits_ == 2) {
+      idle_threshold_laser_ = link_->interval_recorder[1] > dlps_idle_threshold_laser ? 0.0 : (link_->interval_recorder[1] > idle_threshold_laser_ ? link_->interval_recorder[1] : idle_threshold_laser_);
+      idle_threshold_tuning_ = link_->interval_recorder[1] > dlps_idle_threshold_tuning ? 0.0 : (link_->interval_recorder[1] > idle_threshold_tuning_ ? link_->interval_recorder[1] : idle_threshold_tuning_);
+      xbt_assert(idle_threshold_tuning_ >= idle_threshold_laser_, "t2 must not be smaller than t1");
+    } else if (predictor_bits_ == 4) {
 
-    if (dlps_mode_ == "full") {
-      idle_threshold_tuning_ = link_->interval_recorder[0] > dlps_idle_threshold_tuning && link_->interval_recorder[1] > dlps_idle_threshold_tuning ? idle_threshold_laser_ : (
-                               link_->interval_recorder[0] > idle_threshold_tuning_ && link_->interval_recorder[1] > idle_threshold_tuning_ ? link_->interval_recorder[1] : (
-                               link_->interval_recorder[0] < idle_threshold_tuning_ && link_->interval_recorder[1] < idle_threshold_tuning_ ? std::max(link_->interval_recorder[1], idle_threshold_laser_) : idle_threshold_tuning_));
+      if (link_->interval_recorder[0] > dlps_idle_threshold_laser && link_->interval_recorder[1] > dlps_idle_threshold_laser)
+	idle_threshold_laser_ = 0.0;
+      else if (link_->interval_recorder[0] <= dlps_idle_threshold_laser && link_->interval_recorder[1] <= dlps_idle_threshold_laser && link_->interval_recorder[0] > idle_threshold_laser_ && link_->interval_recorder[1] > idle_threshold_laser_)
+	idle_threshold_laser_ = std::max(link_->interval_recorder[0], link_->interval_recorder[1]);
 
-      if (idle_threshold_tuning_ < idle_threshold_laser_)
-	idle_threshold_tuning_ = idle_threshold_laser_;
+      if (link_->interval_recorder[0] > dlps_idle_threshold_tuning && link_->interval_recorder[1] > dlps_idle_threshold_tuning)
+	idle_threshold_tuning_ = 0.0;
+      else if (link_->interval_recorder[0] <= dlps_idle_threshold_tuning && link_->interval_recorder[1] <= dlps_idle_threshold_tuning && link_->interval_recorder[0] > idle_threshold_tuning_ && link_->interval_recorder[1] > idle_threshold_tuning_)
+	idle_threshold_tuning_ = std::max(link_->interval_recorder[0], link_->interval_recorder[1]);
+      
+      xbt_assert(idle_threshold_tuning_ >= idle_threshold_laser_, "t2 must not be smaller than t1");
     }
-  } */
+  }
 
   last_updated_ = now;
 
 }
 
-void DLPS::update_on_comm_end(unsigned long action_id, double actual_transfer_end_time, double size)
+void DLPS::update_on_comm_end(unsigned long action_id, double actual_transfer_end_time, double size, double link_idx)
 {
   XBT_DEBUG("Updating link '%s' on communication end", link_->get_cname());
   xbt_assert(is_enabled_,
@@ -141,7 +146,7 @@ void DLPS::update_on_comm_end(unsigned long action_id, double actual_transfer_en
   double bytes_since_last_update    = size;
   cumulated_bytes_ += bytes_since_last_update;
 
-  comm_trace.push_back(std::make_tuple(now, action_id, "FINISHED", now, actual_transfer_end_time, current_instantaneous_bytes_per_second));
+  comm_trace.push_back(std::make_tuple(now, action_id, "FINISHED", now, actual_transfer_end_time, current_instantaneous_bytes_per_second, link_idx, idle_threshold_laser_, idle_threshold_tuning_, bytes_since_last_update));
 
   last_updated_ = now;
 
@@ -159,6 +164,11 @@ bool DLPS::is_enabled() const
 std::string DLPS::get_dlps_mode() const
 {
   return dlps_mode_;
+}
+
+int DLPS::get_idle_predictor_bits() const
+{
+  return predictor_bits_;
 }
 
 double DLPS::get_last_updated()
@@ -223,7 +233,7 @@ static void on_communicate(simgrid::kernel::resource::NetworkAction& action)
       if (dlps->is_enabled() && action.get_size() > 0) {
         link->get_iface()->add_to_active_action_map(action.get_id(), now, now + (link_idx - 1) * action.get_size() / (link->get_bandwidth() * sg_bandwidth_factor));
         XBT_INFO("%.17f,%ld,%s\n", now, link->get_iface()->get_num_active_actions(), link->get_iface()->get_cname());
-        dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time());
+        dlps->update_on_comm_start(action.get_id(), action.get_actual_start_time(), (double) link_idx/action.get_route().size());
       }
     }
   }
@@ -246,7 +256,7 @@ static void on_communication_state_change(const simgrid::kernel::resource::Netwo
          || (action.get_state() == simgrid::kernel::resource::Action::State::IGNORED)) {
 
 	  double actual_transfer_end_time = action.get_actual_start_time() + link_idx * transfer_time_per_link;
-          dlps->update_on_comm_end(action.get_id(), actual_transfer_end_time, action.get_size());
+          dlps->update_on_comm_end(action.get_id(), actual_transfer_end_time, action.get_size(), (double) link_idx/action.get_route().size());
           link->get_iface()->remove_from_active_action_map(action.get_id());
           link->get_iface()->set_last_busy(std::max(actual_transfer_end_time, link->get_iface()->get_last_busy()));
 

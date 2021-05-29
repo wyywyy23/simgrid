@@ -39,6 +39,8 @@ extern XBT_PRIVATE double dlps_delay_laser_waking;
 extern XBT_PRIVATE double dlps_idle_threshold_tuning;
 extern XBT_PRIVATE double dlps_idle_threshold_laser;
 
+extern XBT_PRIVATE int dlps_idle_predictor_bits;
+
 /** set of hosts for which one want to be notified if they ever restart */
 inline auto& watched_hosts() // avoid static initialization order fiasco
 {
